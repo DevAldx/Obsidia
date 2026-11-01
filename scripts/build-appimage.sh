@@ -28,16 +28,17 @@ if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ] && [ -z "${TAURI_SIGNING_PRIVATE_KEY_
   exit 1
 fi
 
+echo "== Compilando Obsidia $VERSION =="
+npm run tauri build -- --bundles appimage
+
+# Tauri descarga linuxdeploy-plugin-appimage durante el build de arriba, así
+# que se busca después (en una máquina limpia, como CI, antes no existe).
 PLUGIN=$(find "${XDG_CACHE_HOME:-$HOME/.cache}/tauri" -maxdepth 1 -type f \
   -name 'linuxdeploy-plugin-appimage*.AppImage' 2>/dev/null | head -1)
 if [ -z "$PLUGIN" ]; then
   echo "ERROR: no se encontró linuxdeploy-plugin-appimage en la caché de Tauri." >&2
-  echo "Ejecuta primero 'npm run tauri build' para que Tauri lo descargue." >&2
   exit 1
 fi
-
-echo "== Compilando Obsidia $VERSION =="
-npm run tauri build -- --bundles appimage
 
 BUNDLE_DIR="$BASE_DIR/src-tauri/target/release/bundle/appimage"
 APPDIR="$BUNDLE_DIR/Obsidia.AppDir"

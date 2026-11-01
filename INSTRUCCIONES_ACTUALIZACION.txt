@@ -3,7 +3,7 @@ OBSIDIA — COMPILAR Y PUBLICAR ACTUALIZACIONES
 ========================================
 
 Última revisión: versión 0.3.1
-Carpeta del proyecto: /home/dns10011/Escritorio/laucher etc/nebula-launcher-fase7-eufonia
+Carpeta del proyecto: /home/dns10011/Escritorio/laucher etc/Obsidia
 Repo de releases: https://github.com/DevAldx/Obsidia
 
 ----------------------------------------
@@ -49,7 +49,7 @@ una última versión con la clave nueva incrustada. Guarda una copia segura.
 Cada cambio que publiques debe llevar una versión nueva. El formato es
 MAYOR.MENOR.PARCHE y el tipo se elige según el cambio:
 
-    cd "/home/dns10011/Escritorio/laucher etc/nebula-launcher-fase7-eufonia"
+    cd "/home/dns10011/Escritorio/laucher etc/Obsidia"
 
     ./scripts/bump-version.sh          # parche: 0.3.0 -> 0.3.1
     ./scripts/bump-version.sh patch    # igual que el anterior
@@ -75,7 +75,7 @@ se actualiza solo al compilar.
 3. COMPILAR Y FIRMAR
 ----------------------------------------
 
-    cd "/home/dns10011/Escritorio/laucher etc/nebula-launcher-fase7-eufonia"
+    cd "/home/dns10011/Escritorio/laucher etc/Obsidia"
     export PATH="$HOME/.cargo/bin:$PATH"
     export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/obsidia.key)"
     ./scripts/build-appimage.sh
@@ -119,7 +119,7 @@ sesión y personalización. Falta la prueba en un Windows 10/11 de escritorio.
 4. GENERAR latest.json
 ----------------------------------------
 
-    cd "/home/dns10011/Escritorio/laucher etc/nebula-launcher-fase7-eufonia"
+    cd "/home/dns10011/Escritorio/laucher etc/Obsidia"
     GITHUB_REPO="DevAldx/Obsidia" ./create_latest_json.sh
 
 Lee la versión del proyecto, busca los artefactos firmados y escribe
