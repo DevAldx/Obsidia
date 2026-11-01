@@ -57,7 +57,7 @@ considere estable, el salto a `1.0.0` se hace una sola vez con
 El script actualiza todos los archivos donde vive la versión:
 
 ```bash
-cd "/home/dns10011/Escritorio/laucher etc/nebula-launcher-fase7-eufonia"
+cd "/home/dns10011/Escritorio/laucher etc/Obsidia"
 
 ./scripts/bump-version.sh              # parche (opción por defecto)
 ./scripts/bump-version.sh patch        # parche explícito
