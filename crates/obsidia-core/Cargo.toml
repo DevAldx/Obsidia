@@ -19,6 +19,8 @@ sha2 = "0.10"
 md-5 = "0.10"
 flate2 = "1"
 base64 = "0.22"
+# Ya llega por rustls; se usa para firmar con el certificado de jugador.
+ring = "0.17"
 tar = "0.4"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 

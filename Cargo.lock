@@ -1130,7 +1130,7 @@ dependencies = [
 
 [[package]]
 name = "obsidia-core"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "base64 0.22.1",
  "directories",
@@ -1140,6 +1140,7 @@ dependencies = [
  "md-5",
  "rand 0.8.8",
  "reqwest",
+ "ring",
  "serde",
  "serde_json",
  "sha1",

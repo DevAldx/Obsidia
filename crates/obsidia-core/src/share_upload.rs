@@ -6,10 +6,12 @@
 //! `share::fetch_manifest`, así que importar no cambia: el servidor sirve
 //! `<URL>/OBS-XXXXXX.json` igual que cualquier servicio de manifiestos.
 //!
-//! Inicio de sesión: como un servidor de Minecraft en online-mode. Se pide un
-//! `serverId` al servidor, se llama a `session/minecraft/join` de Mojang con el
-//! token de la cuenta y el servidor lo comprueba con `hasJoined`. El token de
-//! Minecraft solo viaja a Mojang, nunca al servidor de Obsidia.
+//! Inicio de sesión: con el certificado de jugador de Mojang (el par de claves
+//! que Minecraft usa para firmar el chat). El launcher lo pide a Mojang, firma
+//! el desafío del servidor con la clave privada y envía la clave pública con
+//! la firma de Mojang. El servidor comprueba las dos firmas sin hablar con
+//! Mojang (que bloquea las peticiones desde Cloudflare). El token de Minecraft
+//! solo viaja a Mojang, nunca al servidor de Obsidia.
 
 use std::{
     collections::HashMap,
@@ -29,7 +31,8 @@ use crate::{
     Result,
 };
 
-const MOJANG_JOIN: &str = "https://sessionserver.mojang.com/session/minecraft/join";
+/// Lo que firma el launcher: este prefijo + el ticket del desafío.
+const LOGIN_PREFIX: &str = "obsidia-share-login\n";
 /// Topes de la carpeta `config/`: suele pesar poco, pero algunos mods guardan
 /// cachés enormes ahí.
 const MAX_CONFIG_FILE_BYTES: u64 = 2 * 1024 * 1024;
@@ -38,6 +41,7 @@ const MAX_CONFIG_TOTAL_BYTES: u64 = 20 * 1024 * 1024;
 
 /// Cuenta de Minecraft con la que se sube (debe ser de Microsoft, no local).
 pub struct Identity {
+    /// Solo informativo (mensajes y registros); lo que se verifica es el UUID.
     pub username: String,
     /// UUID sin guiones.
     pub uuid: String,
@@ -119,8 +123,6 @@ fn net(what: &'static str) -> impl Fn(reqwest::Error) -> CoreError {
 
 #[derive(Deserialize)]
 struct Challenge {
-    #[serde(rename = "serverId")]
-    server_id: String,
     ticket: String,
 }
 
@@ -130,6 +132,7 @@ struct LoginResponse {
 }
 
 async fn login(client: &reqwest::Client, base: &str, identity: &Identity) -> Result<String> {
+    let cert = fetch_certificate(client, &identity.access_token).await?;
     let ch: Challenge = check(
         client
             .post(format!("{base}/api/challenge"))
@@ -142,26 +145,19 @@ async fn login(client: &reqwest::Client, base: &str, identity: &Identity) -> Res
     .json()
     .await
     .map_err(net("servidor para compartir"))?;
-
-    check(
-        client
-            .post(MOJANG_JOIN)
-            .json(&serde_json::json!({
-                "accessToken": identity.access_token,
-                "selectedProfile": identity.uuid,
-                "serverId": ch.server_id,
-            }))
-            .send()
-            .await
-            .map_err(net("Mojang"))?,
-        "Mojang no aceptó tu sesión (vuelve a iniciar sesión)",
-    )
-    .await?;
+    let signature = cert.sign(format!("{LOGIN_PREFIX}{}", ch.ticket).as_bytes())?;
 
     let login: LoginResponse = check(
         client
             .post(format!("{base}/api/login"))
-            .json(&serde_json::json!({ "username": identity.username, "ticket": ch.ticket }))
+            .json(&serde_json::json!({
+                "uuid": identity.uuid,
+                "ticket": ch.ticket,
+                "publicKey": cert.public_key_pem,
+                "publicKeySignatureV2": cert.public_key_signature_v2,
+                "expiresAt": cert.expires_at,
+                "signature": signature,
+            }))
             .send()
             .await
             .map_err(net("servidor para compartir"))?,
@@ -172,6 +168,91 @@ async fn login(client: &reqwest::Client, base: &str, identity: &Identity) -> Res
     .await
     .map_err(net("servidor para compartir"))?;
     Ok(login.token)
+}
+
+// ───────────────────────────── Certificado de jugador ─────────────────────────────
+
+const MOJANG_CERTIFICATES: &str = "https://api.minecraftservices.com/player/certificates";
+
+/// Par de claves que Mojang emite para cada cuenta (el que usa Minecraft para
+/// firmar el chat), con la firma de Mojang sobre la clave pública.
+pub(crate) struct PlayerCertificate {
+    pub(crate) public_key_pem: String,
+    pub(crate) public_key_signature_v2: String,
+    pub(crate) expires_at: String,
+    key_pair: ring::signature::RsaKeyPair,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CertificatesResponse {
+    key_pair: CertKeyPair,
+    public_key_signature_v2: String,
+    expires_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CertKeyPair {
+    private_key: String,
+    public_key: String,
+}
+
+/// Contenido base64 de un PEM (Mojang etiqueta «RSA PRIVATE KEY», pero es PKCS#8).
+fn pem_body(pem: &str) -> Result<Vec<u8>> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    let body: String = pem
+        .lines()
+        .filter(|l| !l.starts_with("-----"))
+        .flat_map(|l| l.chars())
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    STANDARD
+        .decode(body)
+        .map_err(|_| CoreError::Auth("Mojang devolvió una clave ilegible".into()))
+}
+
+impl PlayerCertificate {
+    /// Firma `message` con la clave privada del jugador (RSA PKCS#1 v1.5, SHA-256), en base64.
+    pub(crate) fn sign(&self, message: &[u8]) -> Result<String> {
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        let mut sig = vec![0u8; self.key_pair.public().modulus_len()];
+        self.key_pair
+            .sign(
+                &ring::signature::RSA_PKCS1_SHA256,
+                &ring::rand::SystemRandom::new(),
+                message,
+                &mut sig,
+            )
+            .map_err(|_| CoreError::Auth("no se pudo firmar con la clave del jugador".into()))?;
+        Ok(STANDARD.encode(sig))
+    }
+}
+
+pub(crate) async fn fetch_certificate(client: &reqwest::Client, access_token: &str) -> Result<PlayerCertificate> {
+    let resp: CertificatesResponse = check(
+        client
+            .post(MOJANG_CERTIFICATES)
+            .bearer_auth(access_token)
+            .header(reqwest::header::CONTENT_LENGTH, 0)
+            .send()
+            .await
+            .map_err(net("Mojang"))?,
+        "Mojang no entregó el certificado de tu cuenta (vuelve a iniciar sesión)",
+    )
+    .await?
+    .json()
+    .await
+    .map_err(net("Mojang"))?;
+    let der = pem_body(&resp.key_pair.private_key)?;
+    let key_pair = ring::signature::RsaKeyPair::from_pkcs8(&der)
+        .map_err(|e| CoreError::Auth(format!("clave del jugador no válida: {e}")))?;
+    Ok(PlayerCertificate {
+        public_key_pem: resp.key_pair.public_key,
+        public_key_signature_v2: resp.public_key_signature_v2,
+        expires_at: resp.expires_at,
+        key_pair,
+    })
 }
 
 // ───────────────────────────── Archivos ─────────────────────────────
@@ -477,6 +558,128 @@ mod tests {
         let names: Vec<_> = files.iter().map(|f| f.file_name.as_str()).collect();
         assert_eq!(names, ["a.json", "sodium/options.json"]);
         assert_eq!(files[1].size, 7);
+    }
+
+    /// Prueba de punta a punta contra el servidor real con la cuenta guardada
+    /// en este PC: sube un pack, lo vuelve a leer por su código, lo instala en
+    /// una carpeta temporal y borra el pack del servidor. Se ejecuta a mano con
+    /// `cargo test -p obsidia-core share_upload::tests::live -- --ignored --nocapture`.
+    #[tokio::test]
+    #[ignore = "usa la red, la cuenta de Microsoft de este PC y el servidor real"]
+    async fn live_upload_and_import_roundtrip() {
+        use crate::{
+            auth::{self, AccountKind, AccountStore, AuthEndpoints},
+            config::Settings,
+            instances::InstanceStore,
+            minecraft::Reporter,
+            share, ObsidiaPaths,
+        };
+
+        let real = ObsidiaPaths::from_system().unwrap();
+        let settings = Settings::load(&real.settings_file()).unwrap();
+        let base = normalize_base(&settings.sharing.effective_url()).unwrap();
+        let store = AccountStore::new(&real);
+        let account = store.cached_account().expect("no hay cuenta guardada");
+        assert_ne!(account.kind, AccountKind::Offline, "hace falta una cuenta de Microsoft");
+        let client_id = settings.account.microsoft_client_id.clone().unwrap_or_default();
+        let signed = auth::resume(&auth::http_client().unwrap(), &AuthEndpoints::live(), &client_id, &store)
+            .await
+            .unwrap()
+            .expect("la sesión de Microsoft no está disponible");
+        let identity = Identity {
+            username: signed.account.username.clone(),
+            uuid: signed.account.uuid.clone(),
+            access_token: signed.session.access_token.clone(),
+        };
+        println!("cuenta: {} · servidor: {base}", identity.username);
+
+        // Instancia de prueba: un mod de Modrinth, uno "privado" único, config e imagen.
+        let tmp = TempDir::new();
+        let dir = tmp.path().join("instancia");
+        std::fs::create_dir_all(dir.join("mods")).unwrap();
+        std::fs::create_dir_all(dir.join("config/prueba")).unwrap();
+        let sodium = reqwest::get(
+            "https://cdn.modrinth.com/data/AANobbMI/versions/SMxNOGZ6/sodium-fabric-0.8.13%2Bmc1.21.1.jar",
+        )
+        .await
+        .unwrap()
+        .bytes()
+        .await
+        .unwrap();
+        std::fs::write(dir.join("mods/sodium.jar"), &sodium).unwrap();
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let private = format!("mod privado de prueba {stamp}");
+        std::fs::write(dir.join("mods/privado.jar"), &private).unwrap();
+        std::fs::write(dir.join("config/prueba/opciones.json"), b"{\"prueba\":true}").unwrap();
+        const PNG_1X1: &[u8] = &[
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+            0x89, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x60, 0x00, 0x02, 0x00,
+            0x00, 0x05, 0x00, 0x01, 0xE9, 0xFA, 0xDC, 0xD8, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44,
+            0xAE, 0x42, 0x60, 0x82,
+        ];
+        background::save(&dir, "image/png", PNG_1X1).unwrap();
+
+        let progress = |phase: &str, done: u64, total: u64| println!("  · {phase} ({done}/{total})");
+        let pack = upload(
+            &base,
+            &identity,
+            UploadInput {
+                name: "Prueba automática",
+                description: Some("Pack de prueba; se borra solo"),
+                minecraft_version: "1.21.1",
+                loader: Loader::Fabric,
+                loader_version: Some("0.16.5"),
+                memory: Memory { min_mb: 2048, max_mb: 4096 },
+                instance_dir: &dir,
+                include_config: true,
+            },
+            &progress,
+        )
+        .await
+        .unwrap();
+        println!("subido: {pack:?}");
+        assert_eq!(pack.from_modrinth, 1, "sodium debe venir de Modrinth");
+        assert_eq!(pack.hosted, 3, "mod privado + config + imagen");
+        assert!(pack.has_background);
+
+        // Importar: el mismo camino que «Importar por código».
+        let client = auth::http_client().unwrap();
+        let manifest = share::fetch_manifest(&client, &base, &pack.code).await.unwrap();
+        assert_eq!(manifest.name, "Prueba automática");
+        assert_eq!(manifest.memory.map(|m| m.max_mb), Some(4096));
+        assert_eq!(manifest.config_files[0].file_name, "prueba/opciones.json");
+        let target = ObsidiaPaths::new(tmp.path().join("cfg"), tmp.path().join("data"));
+        target.ensure_layout().unwrap();
+        let instances = InstanceStore::new(target.clone());
+        let id = share::install(&target, &instances, &manifest, &Reporter::silent()).await.unwrap();
+        let installed = target.instance_dir(&id);
+        assert_eq!(std::fs::read(installed.join("mods/sodium.jar")).unwrap(), sodium.to_vec());
+        assert_eq!(std::fs::read_to_string(installed.join("mods/privado.jar")).unwrap(), private);
+        assert_eq!(
+            std::fs::read(installed.join("config/prueba/opciones.json")).unwrap(),
+            b"{\"prueba\":true}"
+        );
+        assert_eq!(background::load(&installed).unwrap().unwrap().1, PNG_1X1);
+        assert_eq!(instances.get(&id).unwrap().instance.memory.max_mb, 4096);
+        println!("importado e instalado como {id}: todo coincide");
+
+        // Limpieza: borrar el pack de prueba del servidor.
+        let http = http_client().unwrap();
+        let token = login(&http, &base, &identity).await.unwrap();
+        let del = http
+            .delete(format!("{base}/api/packs/{}", pack.code))
+            .bearer_auth(&token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(del.status().as_u16(), 204, "no se pudo borrar el pack de prueba");
+        let gone = http.get(format!("{base}/{}.json", pack.code)).send().await.unwrap();
+        assert_eq!(gone.status().as_u16(), 404);
+        println!("pack {} borrado del servidor", pack.code);
     }
 
     #[test]

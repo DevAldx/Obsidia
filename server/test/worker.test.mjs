@@ -1,4 +1,4 @@
-// Pruebas del Worker sin Cloudflare: R2 en memoria y Mojang simulado.
+// Pruebas del Worker sin Cloudflare: almacenamiento en memoria y claves de Mojang simuladas.
 // Ejecutar con `node --test server/test/`.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -56,7 +56,7 @@ function memoryKv() {
 const USE_KV = process.env.STORAGE === "kv";
 
 function makeEnv() {
-  const base = { SECRET: "x".repeat(40), MAX_FILE_MB: "1" };
+  const base = { SECRET: "x".repeat(40), MAX_FILE_MB: "1", MOJANG_PLAYER_KEYS: MOJANG_KEY_B64 };
   return USE_KV ? { ...base, FILES: memoryKv() } : { ...base, BUCKET: memoryBucket() };
 }
 
@@ -65,18 +65,37 @@ function setOwner(env, key, owner) {
   else env.BUCKET.store.get(key).customMetadata.owner = owner;
 }
 
-// Mojang: solo confirma al usuario "Steve" con el último serverId que "se unió".
-let joinedServerId = null;
+// El Worker no debe llamar a ninguna red: todo se verifica con firmas.
 globalThis.fetch = async (url) => {
-  const u = new URL(url);
-  if (u.hostname === "sessionserver.mojang.com") {
-    if (u.searchParams.get("username") === "Steve" && u.searchParams.get("serverId") === joinedServerId) {
-      return new Response(JSON.stringify({ id: UUID, name: "Steve" }), { status: 200 });
-    }
-    return new Response(null, { status: 204 });
-  }
   throw new Error(`fetch inesperado: ${url}`);
 };
+
+// "Mojang" de prueba: una clave RSA propia que firma los certificados.
+const RSA = { name: "RSASSA-PKCS1-v1_5", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]) };
+const b64 = (bytes) => Buffer.from(bytes).toString("base64");
+const mojang = await crypto.subtle.generateKey({ ...RSA, hash: "SHA-1" }, true, ["sign", "verify"]);
+const MOJANG_KEY_B64 = b64(await crypto.subtle.exportKey("spki", mojang.publicKey));
+
+/** Certificado de jugador como el de /player/certificates, firmado por `signer`. */
+async function playerCertificate({ uuid = UUID, expiresInMs = 3600_000, signer = mojang.privateKey } = {}) {
+  const player = await crypto.subtle.generateKey({ ...RSA, hash: "SHA-256" }, true, ["sign", "verify"]);
+  const spki = new Uint8Array(await crypto.subtle.exportKey("spki", player.publicKey));
+  const expires = new Date(Date.now() + expiresInMs);
+  // Mojang manda nanosegundos: comprobamos que se truncan como en Java.
+  const expiresAt = expires.toISOString().replace("Z", "123456Z");
+  const payload = new Uint8Array(24 + spki.length);
+  for (let i = 0; i < 16; i++) payload[i] = parseInt(uuid.slice(i * 2, i * 2 + 2), 16);
+  new DataView(payload.buffer).setBigInt64(16, BigInt(expires.getTime()));
+  payload.set(spki, 24);
+  const sigV2 = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", signer, payload);
+  return {
+    publicKey: `-----BEGIN RSA PUBLIC KEY-----\n${b64(spki)}\n-----END RSA PUBLIC KEY-----\n`,
+    publicKeySignatureV2: b64(sigV2),
+    expiresAt,
+    sign: async (text) =>
+      b64(await crypto.subtle.sign("RSASSA-PKCS1-v1_5", player.privateKey, new TextEncoder().encode(text))),
+  };
+}
 
 const call = (env, method, path, { body, token, headers = {} } = {}) =>
   worker.fetch(
@@ -88,10 +107,20 @@ const call = (env, method, path, { body, token, headers = {} } = {}) =>
     env,
   );
 
-async function loginAs(env, username = "Steve") {
+async function loginAs(env, opts = {}) {
   const ch = await (await call(env, "POST", "/api/challenge")).json();
-  joinedServerId = ch.serverId; // lo que haría el launcher con /session/minecraft/join
-  return call(env, "POST", "/api/login", { body: JSON.stringify({ username, ticket: ch.ticket }) });
+  const cert = await playerCertificate(opts);
+  const message = opts.signTicket ?? ch.ticket;
+  return call(env, "POST", "/api/login", {
+    body: JSON.stringify({
+      uuid: opts.claimUuid ?? UUID.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, "$1-$2-$3-$4-$5"),
+      ticket: ch.ticket,
+      publicKey: cert.publicKey,
+      publicKeySignatureV2: cert.publicKeySignatureV2,
+      expiresAt: cert.expiresAt,
+      signature: await cert.sign(`obsidia-share-login\n${message}`),
+    }),
+  });
 }
 
 const sha1 = (bytes) => createHash("sha1").update(bytes).digest("hex");
@@ -119,22 +148,25 @@ function manifest(fileUrl, hash, size) {
   };
 }
 
-test("login con Mojang emite un token y rechaza a quien no se unió", async () => {
+test("login con certificado de jugador: acepta el bueno y rechaza los falsos", async () => {
   const env = makeEnv();
   const ok = await loginAs(env);
-  assert.equal(ok.status, 200);
+  assert.equal(ok.status, 200, await ok.clone().text());
   const body = await ok.json();
   assert.equal(body.uuid, UUID);
   assert.ok(body.token);
 
-  const ch = await (await call(env, "POST", "/api/challenge")).json();
-  const bad = await call(env, "POST", "/api/login", { body: JSON.stringify({ username: "Steve", ticket: ch.ticket }) });
-  assert.equal(bad.status, 401, "sin join previo no hay sesión");
+  const otherSigner = await crypto.subtle.generateKey({ ...RSA, hash: "SHA-1" }, true, ["sign", "verify"]);
+  assert.equal((await loginAs(env, { signer: otherSigner.privateKey })).status, 401, "no firmado por Mojang");
+  assert.equal((await loginAs(env, { claimUuid: "f".repeat(32) })).status, 401, "UUID ajeno al certificado");
+  assert.equal((await loginAs(env, { expiresInMs: -1000 })).status, 401, "certificado caducado");
+  assert.equal((await loginAs(env, { signTicket: "otro" })).status, 401, "firma de otro desafío");
 
+  const ch = await (await call(env, "POST", "/api/challenge")).json();
   const forged = await call(env, "POST", "/api/login", {
-    body: JSON.stringify({ username: "Steve", ticket: ch.ticket.replace(/.$/, "A") }),
+    body: JSON.stringify({ uuid: UUID, ticket: ch.ticket.replace(/.$/, "A") }),
   });
-  assert.equal(forged.status, 401);
+  assert.equal(forged.status, 401, "ticket manipulado");
 });
 
 test("flujo completo: subir, crear pack, leerlo, descargar y borrar", async () => {

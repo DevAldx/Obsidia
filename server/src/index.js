@@ -11,17 +11,26 @@
 //   POST /api/packs              cuerpo = manifiesto JSON -> { code }
 //   DELETE /api/packs/<code>     solo el dueño
 //
-// Inicio de sesión: igual que un servidor de Minecraft en online-mode. El
-// launcher llama a `session/minecraft/join` de Mojang con su token y el
-// `serverId` que le damos; aquí solo preguntamos a Mojang `hasJoined`. El token
-// de Minecraft nunca llega a este servidor.
+// Inicio de sesión: con el certificado de jugador de Mojang (el par de claves
+// que Minecraft usa para firmar el chat). Mojang firma la clave pública de cada
+// cuenta; el launcher firma nuestro desafío con la clave privada. Aquí se
+// comprueban las dos firmas sin llamar a Mojang (Mojang bloquea las peticiones
+// que salen de Cloudflare). El token de Minecraft nunca llega a este servidor.
 
 const MODRINTH_CDN = "cdn.modrinth.com";
-const MOJANG_HAS_JOINED = "https://sessionserver.mojang.com/session/minecraft/hasJoined";
+// Claves con las que Mojang firma los certificados de jugador
+// (`playerCertificateKeys` de https://api.minecraftservices.com/publickeys).
+// Si Mojang las cambia, se pueden sobrescribir con la variable MOJANG_PLAYER_KEYS
+// (claves base64 separadas por comas) sin tocar el código.
+const MOJANG_PLAYER_KEYS = [
+  "MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAylB4B6m5lz7jwrcFz6Fd/fnfUhcvlxsTSn5kIK/2aGG1C3kMy4VjhwlxF6BFUSnfxhNswPjh3ZitkBxEAFY25uzkJFRwHwVA9mdwjashXILtR6OqdLXXFVyUPIURLOSWqGNBtb08EN5fMnG8iFLgEJIBMxs9BvF3s3/FhuHyPKiVTZmXY0WY4ZyYqvoKR+XjaTRPPvBsDa4WI2u1zxXMeHlodT3lnCzVvyOYBLXL6CJgByuOxccJ8hnXfF9yY4F0aeL080Jz/3+EBNG8RO4ByhtBf4Ny8NQ6stWsjfeUIvH7bU/4zCYcYOq4WrInXHqS8qruDmIl7P5XXGcabuzQstPf/h2CRAUpP/PlHXcMlvewjmGU6MfDK+lifScNYwjPxRo4nKTGFZf/0aqHCh/EAsQyLKrOIYRE0lDG3bzBh8ogIMLAugsAfBb6M3mqCqKaTMAf/VAjh5FFJnjS+7bE+bZEV0qwax1CEoPPJL1fIQjOS8zj086gjpGRCtSy9+bTPTfTR/SJ+VUB5G2IeCItkNHpJX2ygojFZ9n5Fnj7R9ZnOM+L8nyIjPu3aePvtcrXlyLhH/hvOfIOjPxOlqW+O5QwSFP4OEcyLAUgDdUgyW36Z5mB285uKW/ighzZsOTevVUG2QwDItObIV6i8RCxFbN2oDHyPaO5j1tTaBNyVt8CAwEAAQ==",
+  "MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAt4t9NPuu7cktclnaH7eZj0omkLcJHeLz5MKsyJEntHZ0INtuBjSSul3Pp3pBeJN8k3ADdcdBLUN90bcAi7WsQqTx3Ft363q3W7TbM8j2iTEdp/0uVspoRt/DP1tkaWFs/w2WwUv9jbVoBUzfUc4pSTIxRwdjmqjZQfvjwKNDbOx3IhP2H0WXodbISejPi1wBZqNW4m1rnZAXp/EpUguxA8mobCa4vUCBkyFDyXdl69/wUSJHyCPmgcMJ364OlAhIqtwVPShBZObvrK/f0BYk6ShJD3N7TFDatSYsIIdcTKRknaIm91s+EsMrdB9U4Yw+ZJ/pyCB4S3vk8zfDCnb0DWIxYH3/EMzaxl77djmTmMzi/JDITup5z3jfWtRZmrAhU2/+W5IO5hEpo3/bCS9PXIY5xb41Lmp2ZO8dXKtyD66Chchy0W129n8vPl2GIruOdrxsjZAHnneyAb9jm0uaGaphwnEnuecX/qgHY6ZMtayvLLsPst8PO6R1vufMy8WqjK+j7LnC1krL7CPDg0NEhyQTmw5l+NCNjSlvB1juM9V4PARg0bYCOkGXm7ydRCjSSH8CJXZpwnd5cBB5WKAX3KPzutRgMi/LFwNSMZzFuUyXaYOZPpD259yqph1LmGqegEdDriACVU+dVEONFMm8eIuBofe7ljmsAFKW9BINwK0CAwEAAQ==",
+];
+const LOGIN_PREFIX = "obsidia-share-login\n";
 const CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const CODE_RE = /^OBS-[A-Z0-9]{6}$/;
 const SHA1_RE = /^[0-9a-f]{40}$/;
-const USERNAME_RE = /^[A-Za-z0-9_]{1,16}$/;
+const UUID_RE = /^[0-9a-f]{32}$/;
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 const MAX_MANIFEST_FILES = 512;
 const CHALLENGE_TTL_S = 120;
@@ -200,24 +209,63 @@ async function challenge(env) {
   return json({ serverId, ticket: await sign(env, "challenge", [serverId], CHALLENGE_TTL_S) });
 }
 
+const b64decode = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const pemToDer = (pem) => b64decode(String(pem).replace(/-----[^-]+-----/g, "").replace(/\s+/g, ""));
+
+/** Milisegundos de un instante ISO de Mojang (trae nanosegundos; Java los trunca a ms). */
+function isoMillis(iso) {
+  const m = String(iso).match(/^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d+))?Z$/);
+  if (!m) return NaN;
+  return Date.parse(`${m[1]}Z`) + Number((m[2] ?? "0").padEnd(3, "0").slice(0, 3));
+}
+
+async function rsaVerify(spki, hash, signature, data) {
+  try {
+    const key = await crypto.subtle.importKey("spki", spki, { name: "RSASSA-PKCS1-v1_5", hash }, false, ["verify"]);
+    return await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, data);
+  } catch {
+    return false;
+  }
+}
+
+/** ¿Mojang firmó esta clave pública para este UUID y esta caducidad? (publicKeySignatureV2) */
+async function mojangSignedKey(env, uuid, expiresAtMs, spki, signature) {
+  const payload = new Uint8Array(24 + spki.length);
+  for (let i = 0; i < 16; i++) payload[i] = parseInt(uuid.slice(i * 2, i * 2 + 2), 16);
+  new DataView(payload.buffer).setBigInt64(16, BigInt(expiresAtMs));
+  payload.set(spki, 24);
+  const keys = env.MOJANG_PLAYER_KEYS ? String(env.MOJANG_PLAYER_KEYS).split(",") : MOJANG_PLAYER_KEYS;
+  for (const k of keys) {
+    if (await rsaVerify(b64decode(k.trim()), "SHA-1", signature, payload)) return true;
+  }
+  return false;
+}
+
 async function login(request, env) {
   const body = await request.json().catch(() => null);
-  const username = body?.username;
-  if (typeof username !== "string" || !USERNAME_RE.test(username)) {
-    throw new HttpError(400, "nombre de usuario no válido");
+  const uuid = String(body?.uuid ?? "").replace(/-/g, "").toLowerCase();
+  if (!UUID_RE.test(uuid)) throw new HttpError(400, "UUID no válido");
+  const ticket = body?.ticket;
+  await verify(env, "challenge", ticket, 1);
+
+  const expiresAt = isoMillis(body?.expiresAt);
+  if (!(expiresAt > Date.now())) throw new HttpError(401, "el certificado de tu cuenta ha caducado; vuelve a iniciar sesión");
+  let spki, mojangSig, playerSig;
+  try {
+    spki = pemToDer(body.publicKey);
+    mojangSig = b64decode(body.publicKeySignatureV2);
+    playerSig = b64decode(body.signature);
+  } catch {
+    throw new HttpError(400, "certificado ilegible");
   }
-  const [serverId] = await verify(env, "challenge", body?.ticket, 1);
-  const q = new URLSearchParams({ username, serverId });
-  const resp = await fetch(`${MOJANG_HAS_JOINED}?${q}`);
-  if (resp.status !== 200) {
-    throw new HttpError(401, "Mojang no ha confirmado tu cuenta; inicia sesión de nuevo en el launcher");
+  if (!(await mojangSignedKey(env, uuid, expiresAt, spki, mojangSig))) {
+    throw new HttpError(401, "Mojang no ha firmado el certificado de esta cuenta");
   }
-  const profile = await resp.json();
-  if (typeof profile?.id !== "string" || !/^[0-9a-f]{32}$/.test(profile.id)) {
-    throw new HttpError(502, "respuesta inesperada de Mojang");
+  if (!(await rsaVerify(spki, "SHA-256", playerSig, enc.encode(LOGIN_PREFIX + ticket)))) {
+    throw new HttpError(401, "la firma de la cuenta no es válida");
   }
-  const token = await sign(env, "token", [profile.id], TOKEN_TTL_S);
-  return json({ token, uuid: profile.id, name: profile.name });
+  const token = await sign(env, "token", [uuid], TOKEN_TTL_S);
+  return json({ token, uuid });
 }
 
 async function requireUser(request, env) {
