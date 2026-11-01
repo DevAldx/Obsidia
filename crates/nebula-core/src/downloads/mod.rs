@@ -94,7 +94,7 @@ impl Downloader {
         let hosts: Vec<String> = allowed_hosts.iter().map(|h| (*h).to_owned()).collect();
         let policy_hosts = hosts.clone();
         let client = Client::builder()
-            .user_agent(concat!("NebulaLauncher/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("ObsidiaLauncher/", env!("CARGO_PKG_VERSION")))
             .https_only(https_only)
             .connect_timeout(Duration::from_secs(15))
             .read_timeout(Duration::from_secs(30))

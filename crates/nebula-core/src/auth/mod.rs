@@ -16,6 +16,7 @@ mod legacy;
 mod mc;
 mod offline;
 mod session;
+pub mod skins;
 mod store;
 mod xbox;
 

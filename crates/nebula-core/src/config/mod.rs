@@ -117,7 +117,7 @@ impl Default for MinecraftDefaults {
 pub struct Settings {
     pub schema_version: u32,
     /// Directorio de datos personalizado. `None` = el XDG por defecto.
-    /// Se aplica al reiniciar Nebula.
+    /// Se aplica al reiniciar Obsidia.
     pub data_dir: Option<PathBuf>,
     pub selected_instance: Option<InstanceId>,
     pub minecraft: MinecraftDefaults,

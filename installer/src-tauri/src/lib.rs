@@ -1,4 +1,4 @@
-//! Lógica real del instalador: busca el AppImage de Nebula Launcher junto a sí
+//! Lógica real del instalador: busca el AppImage de Obsidia (antes Nebula Launcher) junto a sí
 //! mismo (o recibe uno elegido a mano), lo copia a una ubicación estable,
 //! lo marca ejecutable y crea un acceso en el menú de aplicaciones.
 //!
@@ -19,7 +19,7 @@ use serde::Serialize;
 
 /// Icono embebido en el propio binario: así el instalador no depende de que
 /// el AppImage del launcher ya esté extraído para tener algo que mostrar.
-const ICON_BYTES: &[u8] = include_bytes!("../icons/nebula.png");
+const ICON_BYTES: &[u8] = include_bytes!("../icons/obsidia.png");
 
 /// Clave pública minisign con la que se firman los AppImage publicados.
 /// La privada vive fuera del repositorio y la usa `scripts/build-appimage.sh`.
@@ -144,7 +144,7 @@ fn own_directory() -> Option<PathBuf> {
         .and_then(|p| p.parent().map(Path::to_path_buf))
 }
 
-/// Busca un `Nebula-Launcher*.AppImage` firmado junto al instalador. `None` si
+/// Busca un `Obsidia*.AppImage` (o uno antiguo `Nebula-Launcher*`) firmado junto al instalador. `None` si
 /// no está ahí (el frontend ofrece entonces elegirlo a mano).
 #[tauri::command]
 fn find_launcher_appimage() -> Option<SourceInfo> {
@@ -155,8 +155,8 @@ fn find_launcher_appimage() -> Option<SourceInfo> {
         let name = entry.file_name().to_string_lossy().into_owned();
         let lower = name.to_ascii_lowercase();
         let is_regular_file = entry.file_type().map(|t| t.is_file()).unwrap_or(false);
-        if lower.contains("nebula")
-            && lower.contains("launcher")
+        let ours = lower.contains("obsidia") || (lower.contains("nebula") && lower.contains("launcher"));
+        if ours
             && is_appimage_name(&name)
             && is_regular_file
             && signature_path(&path).is_file()
@@ -172,7 +172,22 @@ fn find_launcher_appimage() -> Option<SourceInfo> {
 }
 
 fn install_destination(home: &Path) -> PathBuf {
-    home.join(".local/share/nebula-launcher")
+    home.join(".local/share/obsidia-launcher")
+}
+
+const APPIMAGE_NAME: &str = "Obsidia.AppImage";
+const DESKTOP_NAME: &str = "obsidia.desktop";
+
+/// Retira la instalación antigua de «Nebula Launcher» hecha por este mismo
+/// instalador: solo el binario, su icono y su entrada de menú, para que no
+/// aparezcan dos launchers. Los datos del juego (`~/.local/share/nebula`) no
+/// se tocan: Obsidia los sigue usando.
+fn remove_legacy_install(home: &Path) {
+    let _ = fs::remove_file(home.join(".local/share/applications/nebula-launcher.desktop"));
+    let old_dir = home.join(".local/share/nebula-launcher");
+    let _ = fs::remove_file(old_dir.join("Nebula-Launcher.AppImage"));
+    let _ = fs::remove_file(old_dir.join("icon.png"));
+    let _ = fs::remove_dir(&old_dir); // solo si quedó vacío
 }
 
 /// Hace ejecutable el archivo para su propietario y grupo (equivalente a
@@ -217,17 +232,17 @@ fn write_icon(dest_dir: &Path) -> CmdResult<PathBuf> {
     Ok(icon_path)
 }
 
-/// Escribe el `.desktop` que hace aparecer a Nebula en el menú de aplicaciones
+/// Escribe el `.desktop` que hace aparecer a Obsidia en el menú de aplicaciones
 /// (siguiendo la especificación freedesktop.org que usan KDE, GNOME, etc.).
 fn write_desktop_entry(home: &Path, exec_path: &Path, icon_path: &Path) -> CmdResult<PathBuf> {
     let apps_dir = home.join(".local/share/applications");
     fs::create_dir_all(&apps_dir)
         .map_err(|e| format!("no se pudo preparar el menú de aplicaciones: {e}"))?;
-    let desktop_path = apps_dir.join("nebula-launcher.desktop");
+    let desktop_path = apps_dir.join(DESKTOP_NAME);
     let contents = format!(
         "[Desktop Entry]\n\
          Type=Application\n\
-         Name=Nebula Launcher\n\
+         Name=Obsidia\n\
          Comment=Launcher de Minecraft\n\
          Exec=\"{}\" %U\n\
          Icon={}\n\
@@ -283,8 +298,9 @@ fn copy_verified_appimage(source: &Path, dest: &Path, signature: Option<&str>) -
 fn finish_install(source: &Path, signature: Option<&str>) -> CmdResult<InstallResult> {
     let home = home_dir()?;
     let dest_dir = install_destination(&home);
-    let dest = dest_dir.join("Nebula-Launcher.AppImage");
+    let dest = dest_dir.join(APPIMAGE_NAME);
     copy_verified_appimage(source, &dest, signature)?;
+    remove_legacy_install(&home);
 
     let icon = write_icon(&dest_dir)?;
     let desktop_file = write_desktop_entry(&home, &dest, &icon)?;
@@ -370,7 +386,7 @@ fn install_from_bytes(
     // Directorio privado y aleatorio: no se reutiliza el nombre del cliente ni
     // una ruta fija en /tmp, así que no hay symlinks ni carreras entre usuarios.
     let tmp_dir = tempfile::Builder::new()
-        .prefix("nebula-installer-")
+        .prefix("obsidia-installer-")
         .tempdir()
         .map_err(|e| format!("no se pudo preparar una carpeta temporal: {e}"))?;
     let tmp_path = tmp_dir.path().join("payload.AppImage");
@@ -379,14 +395,14 @@ fn install_from_bytes(
     finish_install(&tmp_path, Some(&signature))
 }
 
-/// Lanza el Nebula Launcher ya instalado.
+/// Lanza Obsidia ya instalado.
 #[tauri::command]
 fn open_installed(path: String) -> CmdResult<()> {
     let requested = PathBuf::from(path);
     let home = home_dir()?;
 
     let metadata = fs::symlink_metadata(&requested)
-        .map_err(|_| "no se encontró el Nebula Launcher instalado".to_owned())?;
+        .map_err(|_| "no se encontró Obsidia instalado".to_owned())?;
     if metadata.file_type().is_symlink() || !metadata.file_type().is_file() {
         return Err("ruta no permitida".into());
     }
@@ -394,14 +410,14 @@ fn open_installed(path: String) -> CmdResult<()> {
     let dest_dir = fs::canonicalize(install_destination(&home))
         .map_err(|_| "no se encontró el directorio de instalación".to_owned())?;
     let canonical = fs::canonicalize(&requested).map_err(|_| "ruta no permitida".to_owned())?;
-    let expected = dest_dir.join("Nebula-Launcher.AppImage");
+    let expected = dest_dir.join(APPIMAGE_NAME);
     if canonical != expected {
         return Err("ruta no permitida".into());
     }
 
     std::process::Command::new(&canonical)
         .spawn()
-        .map_err(|e| format!("no se pudo abrir Nebula: {e}"))?;
+        .map_err(|e| format!("no se pudo abrir Obsidia: {e}"))?;
     Ok(())
 }
 
@@ -430,7 +446,7 @@ mod tests {
 
     fn temp_dir() -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
-            "nebula-installer-test-{}-{}",
+            "obsidia-installer-test-{}-{}",
             std::process::id(),
             fastrand_u64()
         ));
@@ -452,12 +468,22 @@ mod tests {
     fn full_install_flow_copies_marks_executable_and_writes_desktop_entry() {
         let home = temp_dir();
         let source_dir = temp_dir();
-        let source = source_dir.join("Nebula-Launcher-0.1.0.AppImage");
+        let source = source_dir.join("Obsidia_0.4.0_amd64.AppImage");
         fs::write(&source, b"fake-appimage-bytes").expect("write source");
+
+        // Restos de una instalación antigua de Nebula Launcher.
+        let old_apps = home.join(".local/share/applications");
+        fs::create_dir_all(&old_apps).expect("apps dir");
+        fs::write(old_apps.join("nebula-launcher.desktop"), b"[Desktop Entry]").expect("old desktop");
+        let old_dir = home.join(".local/share/nebula-launcher");
+        fs::create_dir_all(&old_dir).expect("old dir");
+        fs::write(old_dir.join("Nebula-Launcher.AppImage"), b"old").expect("old appimage");
 
         let _guard = HOME_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("HOME", &home);
         let result = finish_install(&source, None).expect("install");
+        assert!(!old_apps.join("nebula-launcher.desktop").exists());
+        assert!(!old_dir.exists());
 
         let dest = PathBuf::from(&result.installed_path);
         assert!(dest.is_file());
@@ -468,7 +494,7 @@ mod tests {
         assert!(mode & 0o100 != 0, "debe ser ejecutable");
 
         let desktop = fs::read_to_string(&result.desktop_file).expect("desktop file");
-        assert!(desktop.contains("Name=Nebula Launcher"));
+        assert!(desktop.contains("Name=Obsidia"));
         assert!(desktop.contains(&dest.display().to_string()));
         assert!(PathBuf::from(&result.desktop_file)
             .parent()
@@ -506,7 +532,7 @@ mod tests {
         let home = temp_dir();
         let _guard = HOME_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("HOME", &home);
-        let outside = home.join(".local/share/nebula-launcher/../../../../bin/sh");
+        let outside = home.join(".local/share/obsidia-launcher/../../../../bin/sh");
         assert!(open_installed(outside.to_string_lossy().into_owned()).is_err());
         assert!(open_installed("/bin/sh".into()).is_err());
     }

@@ -17,7 +17,7 @@ IMPORTANTE
   no encontró el botón de inicio de sesión, así que esa parte no se revalidó en
   0.3.1. La versión 0.2.0 ya se probó allí con
   SHA-256 correcto, instalación código 0, ventana principal, botón Microsoft,
-  ventana "Nebula — Iniciar sesión" y Cancelar. Con UI Automation se comprobó
+  ventana "Obsidia — Iniciar sesión" y Cancelar. Con UI Automation se comprobó
   el icono PNG, el fondo GIF, el tema púrpura, el acento #22c55e, el desenfoque
   de 15 px y el oscurecimiento del 60 %: se guardaron en
   %APPDATA%\nebula\nebula\config y persistieron tras reiniciar. El aviso legal
@@ -87,8 +87,8 @@ O manualmente:
 
 Resultado:
   src-tauri\target\release\bundle\nsis\
-    Nebula Launcher_0.3.1_x64-setup.exe
-    Nebula Launcher_0.3.1_x64-setup.exe.sig
+    Obsidia_0.4.0_x64-setup.exe
+    Obsidia_0.4.0_x64-setup.exe.sig
 
 El .sig se genera solo porque bundle.createUpdaterArtifacts = true. Si no
 aparece, el build no vio TAURI_SIGNING_PRIVATE_KEY.
@@ -121,8 +121,8 @@ en el PATH que exporte NSISDIR y ejecute el binario real:
 
 Resultado:
   src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/
-    Nebula Launcher_0.3.1_x64-setup.exe
-    Nebula Launcher_0.3.1_x64-setup.exe.sig
+    Obsidia_0.4.0_x64-setup.exe
+    Obsidia_0.4.0_x64-setup.exe.sig
 
 Los avisos sobre `libcmt.amd64.pdb` son normales con cargo-xwin y no impiden
 el enlazado.
@@ -203,16 +203,16 @@ los espacios por puntos).
 ----------------------------------------
 
 1. Ejecuta el instalador .exe en una cuenta de usuario normal.
-2. Abre Nebula Launcher desde el menú Inicio.
+2. Abre Obsidia desde el menú Inicio.
 3. Inicio > Iniciar sesión local: escribe un nombre (3-16 letras/números/_).
    Debe aparecer "Cuenta local" y el aviso de online-mode=false.
 4. Ajustes > Cuenta > Microsoft heredado > Iniciar sesión con Microsoft:
-   - Debe abrir una ventana aparte "Nebula — Iniciar sesión" con el código.
+   - Debe abrir una ventana aparte "Obsidia — Iniciar sesión" con el código.
    - Pulsa "Abrir en el navegador" (o abre https://www.microsoft.com/link)
      y escribe el código.
-   - Al completar el login, la ventana se cierra y Nebula vuelve como
+   - Al completar el login, la ventana se cierra y Obsidia vuelve como
      "Microsoft heredado".
-   - Cierra y reabre Nebula: la cuenta debe seguir ahí (refresh token).
+   - Cierra y reabre Obsidia: la cuenta debe seguir ahí (refresh token).
    - Este método no requiere Azure; si Microsoft lo bloquea, prueba la vía
      oficial con tu propio Client ID o la cuenta local.
 5. Crea o importa una instancia y pulsa Jugar.
@@ -220,14 +220,15 @@ los espacios por puntos).
    - El juego debe arrancar con el classpath correcto (separador `;`).
 6. Importa una instancia compartida con background_url y comprueba que
    aparece el fondo y el nombre del manifiesto.
-7. Al abrir Nebula, comprueba que aparece la ventana de bienvenida con la
+7. Al abrir Obsidia, comprueba que aparece la ventana de bienvenida con la
    animación, el progreso y la versión; después debe abrirse la ventana
    principal. Si la comprobación de actualizaciones tarda, la ventana
    principal debe abrirse igualmente en menos de 12 s.
-8. Abre Acerca de desde la barra lateral: debe mostrar el copyright de Nebula,
+8. Abre Ajustes → Acerca de: debe mostrar el copyright de Obsidia,
    las marcas de Mojang/Microsoft y el aviso de no afiliación. Comprueba
-   también el pie de la barra lateral.
-9. Comprueba Ajustes > Actualizaciones y que la versión mostrada es 0.3.1.
+   también que la barra superior propia permite mover, minimizar,
+   maximizar (doble clic) y cerrar la ventana.
+9. Comprueba Ajustes > Actualizaciones y que la versión mostrada es la nueva.
 10. Si algo falla, guarda el log de la instancia y el mensaje exacto antes de
     cambiar nada.
 
@@ -256,4 +257,4 @@ los espacios por puntos).
 "Windows SmartScreen"
   Un instalador nuevo sin reputación puede mostrar un aviso. No es un error de
   firma del updater; se reduce con el tiempo o con un certificado de código
-  (Nebula no lo tiene).
+  (Obsidia no lo tiene).

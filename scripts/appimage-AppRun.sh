@@ -1,5 +1,5 @@
 #!/bin/sh
-# Arranque del AppImage de Nebula Launcher.
+# Arranque del AppImage de Obsidia.
 #
 # Si el sistema ya tiene WebKitGTK 4.1 y GTK 3, se usan esas librerías.
 # Cargar la copia empaquetada (unos 300 MB sin comprimir) desde el AppImage
@@ -7,7 +7,7 @@
 # en una fracción de segundo. Si no están, se usa la copia incluida.
 #
 # Para forzar la copia empaquetada:
-#   NEBULA_BUNDLED_WEBKIT=1 ./Nebula\ Launcher_*.AppImage
+#   NEBULA_BUNDLED_WEBKIT=1 ./Obsidia_*.AppImage
 set -e
 
 APPDIR="${APPDIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -39,7 +39,7 @@ fi
 if [ -n "$system_dirs" ]; then
   export LD_LIBRARY_PATH="$system_dirs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
   cd "$APPDIR/usr"
-  exec "$APPDIR/usr/bin/nebula-launcher" "$@"
+  exec "$APPDIR/usr/bin/obsidia" "$@"
 fi
 
 # Respaldo: todo desde el AppImage. WebKitGTK empaquetado busca sus procesos
@@ -47,4 +47,4 @@ fi
 . "$APPDIR/apprun-hooks/linuxdeploy-plugin-gtk.sh"
 export LD_LIBRARY_PATH="$APPDIR/usr/lib/:$APPDIR/usr/lib/i386-linux-gnu/:$APPDIR/usr/lib/x86_64-linux-gnu/:$APPDIR/usr/lib32/:$APPDIR/usr/lib64/:$APPDIR/lib/:$APPDIR/lib/i386-linux-gnu/:$APPDIR/lib/x86_64-linux-gnu/:$APPDIR/lib32/:$APPDIR/lib64/${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 cd "$APPDIR/usr"
-exec "$APPDIR/usr/bin/nebula-launcher" "$@"
+exec "$APPDIR/usr/bin/obsidia" "$@"

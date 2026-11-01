@@ -36,11 +36,11 @@ if [ -z "$PLUGIN" ]; then
   exit 1
 fi
 
-echo "== Compilando Nebula Launcher $VERSION =="
+echo "== Compilando Obsidia $VERSION =="
 npm run tauri build -- --bundles appimage
 
 BUNDLE_DIR="$BASE_DIR/src-tauri/target/release/bundle/appimage"
-APPDIR="$BUNDLE_DIR/Nebula Launcher.AppDir"
+APPDIR="$BUNDLE_DIR/Obsidia.AppDir"
 APPIMAGE=$(find "$BUNDLE_DIR" -maxdepth 1 -type f -name '*.AppImage' -name "*${VERSION}*" | head -1)
 
 if [ ! -d "$APPDIR" ]; then

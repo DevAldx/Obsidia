@@ -16,7 +16,12 @@ function windowLabel(): string {
 }
 
 const target = document.getElementById("app")!;
-const label = windowLabel();
+// En desarrollo, `?splash` muestra la bienvenida en el navegador para diseñarla.
+const label =
+  import.meta.env.DEV && new URLSearchParams(location.search).has("splash") ? "splash" : windowLabel();
+
+// La pantalla de arranque estática de index.html deja paso a la interfaz real.
+target.replaceChildren();
 
 if (label === "splash") {
   mount(Splash, { target });

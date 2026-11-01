@@ -1,10 +1,10 @@
 [package]
 name = "nebula-launcher"
-version = "0.3.2"
+version = "0.4.0"
 edition = "2021"
 rust-version = "1.77"
 license = "MIT"
-description = "Nebula Launcher: launcher de Minecraft ligero para Linux"
+description = "Obsidia: launcher de Minecraft ligero"
 
 # Tauri exige su propio workspace; la lógica vive en ../crates/nebula-core.
 [workspace]

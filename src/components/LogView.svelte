@@ -2,7 +2,7 @@
   import { app } from "../lib/app.svelte";
   import { tick } from "svelte";
 
-  let { id }: { id: string } = $props();
+  let { id, height = "220px" }: { id: string; height?: string } = $props();
   const lines = $derived(app.logs[id] ?? []);
   let box = $state<HTMLDivElement | null>(null);
 
@@ -15,7 +15,7 @@
   });
 </script>
 
-<div class="logs mono" bind:this={box}>
+<div class="logs mono" style:height={height} bind:this={box}>
   {#if lines.length === 0}
     <span class="muted">Los logs de Minecraft aparecerán aquí al jugar.</span>
   {/if}
@@ -25,7 +25,7 @@
 </div>
 
 <style>
-  .logs { height: 220px; overflow: auto; font-size: 12px; line-height: 1.5; background: rgb(0 0 0 / 0.35);
-    border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; white-space: pre-wrap; word-break: break-all; user-select: text; }
+  .logs { min-height: 200px; overflow: auto; font-size: 12px; line-height: 1.5; background: #060509;
+    border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; white-space: pre-wrap; word-break: break-all; user-select: text; color: #d6d2e6; }
   .err { color: #ffb4a8; }
 </style>

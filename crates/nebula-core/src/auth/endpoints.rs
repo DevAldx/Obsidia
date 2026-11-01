@@ -83,7 +83,7 @@ impl AuthEndpoints {
 /// (un redirect inesperado debe fallar de forma visible, no saltar de host en silencio).
 pub fn http_client() -> Result<reqwest::Client> {
     reqwest::Client::builder()
-        .user_agent(concat!("NebulaLauncher/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("ObsidiaLauncher/", env!("CARGO_PKG_VERSION")))
         .https_only(true)
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(std::time::Duration::from_secs(15))

@@ -19,6 +19,8 @@ use nebula_core::{
     background,
     minecraft::{fabric, install::copy_assets, Installer, Reporter, VersionSummary},
     mods::{self, ModEntry},
+    auth::skins::{self, LibrarySkin, SkinProfile, SkinVariant},
+    news::{self, NewsFeed},
     share::{self, InstanceManifest},
     updater::{self, UpdateCheck},
     CoreError, NebulaPaths,
@@ -46,19 +48,24 @@ struct AppState {
     sign_in_code: Mutex<Option<SignInCodeState>>,
     /// Progreso real del arranque que muestra la ventana de bienvenida.
     startup: Mutex<StartupProgress>,
+    /// Última copia de las noticias de Mojang (también se guarda en disco).
+    news: Mutex<Option<NewsFeed>>,
+    news_http: reqwest::Client,
+    /// Token de Minecraft Services para skins/capas: (UUID de la cuenta, token, emisión).
+    mc_token: Mutex<Option<(String, String, std::time::Instant)>>,
 }
 
 impl AppState {
     fn settings(&self) -> Result<MutexGuard<'_, Settings>, CommandError> {
         self.settings
             .lock()
-            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Nebula"))
+            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Obsidia"))
     }
 
     fn games(&self) -> Result<MutexGuard<'_, HashMap<String, GameSlot>>, CommandError> {
         self.games
             .lock()
-            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Nebula"))
+            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Obsidia"))
     }
 
     fn sign_in_cancel(
@@ -66,7 +73,7 @@ impl AppState {
     ) -> Result<MutexGuard<'_, Option<oneshot::Sender<()>>>, CommandError> {
         self.sign_in_cancel
             .lock()
-            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Nebula"))
+            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Obsidia"))
     }
 
     fn pending_sign_in(
@@ -74,13 +81,13 @@ impl AppState {
     ) -> Result<MutexGuard<'_, Option<SignInCodeState>>, CommandError> {
         self.sign_in_code
             .lock()
-            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Nebula"))
+            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Obsidia"))
     }
 
     fn startup(&self) -> Result<MutexGuard<'_, StartupProgress>, CommandError> {
         self.startup
             .lock()
-            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Nebula"))
+            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Obsidia"))
     }
 
     fn microsoft_client_id(&self) -> Result<String, CommandError> {
@@ -150,7 +157,7 @@ impl StartupProgress {
             step: 0,
             total: 5,
             percent: 4,
-            label: "Iniciando Nebula".to_owned(),
+            label: "Iniciando Obsidia".to_owned(),
             detail: None,
             done: false,
             version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -310,7 +317,7 @@ fn open_sign_in_window(app: &AppHandle) -> tauri::Result<tauri::WebviewWindow> {
         "signin",
         tauri::WebviewUrl::App("index.html".into()),
     )
-    .title("Nebula — Iniciar sesión")
+    .title("Obsidia — Iniciar sesión")
     .inner_size(460.0, 500.0)
     .resizable(false)
     .maximizable(false)
@@ -562,6 +569,9 @@ fn sign_in_offline(state: State<'_, AppState>, username: String) -> CmdResult<Ac
 #[tauri::command]
 fn sign_out(state: State<'_, AppState>) -> CmdResult<()> {
     state.auth_store.clear()?;
+    if let Ok(mut slot) = state.mc_token.lock() {
+        *slot = None;
+    }
     Ok(())
 }
 
@@ -634,6 +644,193 @@ fn open_https_url(url: String) -> CmdResult<()> {
     }
     open_target(parsed.as_str().as_ref(), false)
         .map_err(|e| CommandError::new(format!("no se pudo abrir el navegador: {e}")))
+}
+
+// ───────────────────────────── Noticias ─────────────────────────────
+
+fn news_client() -> Result<reqwest::Client, CoreError> {
+    reqwest::Client::builder()
+        .user_agent(concat!("ObsidiaLauncher/", env!("CARGO_PKG_VERSION")))
+        .https_only(true)
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| CoreError::Network(e.to_string()))
+}
+
+/// Noticias de Minecraft: Java Edition. Se descargan como mucho cada 30 min;
+/// sin red se devuelve la última copia guardada marcada como `stale`.
+#[tauri::command]
+async fn fetch_news(state: State<'_, AppState>, force: Option<bool>) -> CmdResult<NewsFeed> {
+    let cache_path = state.paths.data_dir().join("cache").join("news.json");
+    let cached = state.news.lock().ok().and_then(|g| g.clone());
+    if !force.unwrap_or(false) {
+        if let Some(feed) = cached.clone().filter(NewsFeed::is_fresh) {
+            return Ok(feed);
+        }
+    }
+    match news::fetch(&state.news_http).await {
+        Ok(feed) => {
+            if let Err(e) = news::save_cache(&cache_path, &feed) {
+                eprintln!("no se pudo guardar la caché de noticias: {e}");
+            }
+            if let Ok(mut slot) = state.news.lock() {
+                *slot = Some(feed.clone());
+            }
+            Ok(feed)
+        }
+        Err(e) => match cached.or_else(|| news::load_cache(&cache_path)) {
+            Some(mut feed) => {
+                feed.stale = true;
+                Ok(feed)
+            }
+            None => Err(CommandError::new(format!("no se pudieron cargar las noticias: {e}"))),
+        },
+    }
+}
+
+// ───────────────────────────── Skins y capas ─────────────────────────────
+
+/// Los tokens de Minecraft duran 24 h; se reutilizan un rato para no repetir
+/// toda la cadena Microsoft → Xbox → Minecraft en cada clic.
+const MC_TOKEN_TTL: Duration = Duration::from_secs(50 * 60);
+
+async fn minecraft_token(state: &AppState) -> CmdResult<String> {
+    let account = match state.auth_store.cached_account() {
+        Some(a) if a.kind == AccountKind::Microsoft => a,
+        Some(_) => {
+            return Err(CommandError::new(
+                "las skins y capas solo se pueden cambiar con una cuenta de Microsoft",
+            ))
+        }
+        None => return Err(CommandError::new("inicia sesión con Microsoft para cambiar tu skin")),
+    };
+    if let Some((uuid, token, at)) = state.mc_token.lock().ok().and_then(|g| g.clone()) {
+        if uuid == account.uuid && at.elapsed() < MC_TOKEN_TTL {
+            return Ok(token);
+        }
+    }
+    let client_id = state.settings()?.account.microsoft_client_id.clone().unwrap_or_default();
+    let ep = AuthEndpoints::live();
+    let signed_in = auth::resume(&state.auth_http, &ep, &client_id, &state.auth_store)
+        .await?
+        .ok_or_else(|| {
+            CommandError::new("tu sesión de Microsoft no está disponible en este PC; inicia sesión de nuevo.")
+        })?;
+    let token = signed_in.session.access_token.clone();
+    if let Ok(mut slot) = state.mc_token.lock() {
+        *slot = Some((signed_in.account.uuid.clone(), token.clone(), std::time::Instant::now()));
+    }
+    Ok(token)
+}
+
+/// Tras un cambio, la cara que muestra la interfaz debe ser la nueva skin.
+fn remember_skin(state: &AppState, profile: &SkinProfile) {
+    let url = profile.active_skin().map(|s| s.url.clone());
+    if let Err(e) = state.auth_store.update_cached_skin(url) {
+        eprintln!("no se pudo actualizar la skin cacheada: {e}");
+    }
+}
+
+fn skins_dir(state: &AppState) -> std::path::PathBuf {
+    state.paths.data_dir().join("skins")
+}
+
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+#[tauri::command]
+async fn get_skin_profile(state: State<'_, AppState>) -> CmdResult<SkinProfile> {
+    let token = minecraft_token(&state).await?;
+    let profile = skins::fetch_skin_profile(&state.auth_http, &AuthEndpoints::live(), &token).await?;
+    remember_skin(&state, &profile);
+    Ok(profile)
+}
+
+/// Sube un PNG elegido por el usuario y lo guarda en la biblioteca local.
+#[tauri::command]
+async fn upload_skin(
+    state: State<'_, AppState>,
+    name: String,
+    variant: SkinVariant,
+    data_base64: String,
+) -> CmdResult<SkinProfile> {
+    if data_base64.len() > skins::MAX_SKIN_BYTES * 4 / 3 + 8 {
+        return Err(CommandError::new("la skin supera los 256 KB"));
+    }
+    let png = BASE64
+        .decode(data_base64.as_bytes())
+        .map_err(|_| CommandError::new("archivo de skin corrupto"))?;
+    skins::validate_skin_png(&png)?;
+    let token = minecraft_token(&state).await?;
+    let profile =
+        skins::upload_skin(&state.auth_http, &AuthEndpoints::live(), &token, variant, &png).await?;
+    remember_skin(&state, &profile);
+    if let Err(e) = skins::save_to_library(&skins_dir(&state), &name, variant, &png, unix_now()) {
+        eprintln!("no se pudo guardar la skin en la biblioteca: {e}");
+    }
+    Ok(profile)
+}
+
+#[tauri::command]
+async fn apply_library_skin(state: State<'_, AppState>, id: String) -> CmdResult<SkinProfile> {
+    let dir = skins_dir(&state);
+    let entry = skins::list_library(&dir)
+        .into_iter()
+        .find(|s| s.id == id)
+        .ok_or_else(|| CommandError::new("esa skin ya no está en la biblioteca"))?;
+    let png = skins::read_library_skin(&dir, &entry.id)?;
+    let token = minecraft_token(&state).await?;
+    let profile =
+        skins::upload_skin(&state.auth_http, &AuthEndpoints::live(), &token, entry.variant, &png)
+            .await?;
+    remember_skin(&state, &profile);
+    Ok(profile)
+}
+
+#[tauri::command]
+async fn reset_skin(state: State<'_, AppState>) -> CmdResult<SkinProfile> {
+    let token = minecraft_token(&state).await?;
+    let profile = skins::reset_skin(&state.auth_http, &AuthEndpoints::live(), &token).await?;
+    remember_skin(&state, &profile);
+    Ok(profile)
+}
+
+#[tauri::command]
+async fn set_cape(state: State<'_, AppState>, cape_id: Option<String>) -> CmdResult<SkinProfile> {
+    let token = minecraft_token(&state).await?;
+    skins::set_cape(&state.auth_http, &AuthEndpoints::live(), &token, cape_id.as_deref())
+        .await
+        .map_err(Into::into)
+}
+
+#[derive(Serialize)]
+struct LibrarySkinView {
+    #[serde(flatten)]
+    skin: LibrarySkin,
+    data_base64: String,
+}
+
+#[tauri::command]
+fn list_skin_library(state: State<'_, AppState>) -> CmdResult<Vec<LibrarySkinView>> {
+    let dir = skins_dir(&state);
+    Ok(skins::list_library(&dir)
+        .into_iter()
+        .filter_map(|skin| {
+            let png = skins::read_library_skin(&dir, &skin.id).ok()?;
+            Some(LibrarySkinView { skin, data_base64: BASE64.encode(png) })
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn delete_library_skin(state: State<'_, AppState>, id: String) -> CmdResult<()> {
+    skins::delete_from_library(&skins_dir(&state), &id)?;
+    Ok(())
 }
 
 // ───────────────────────────── Instancias ─────────────────────────────
@@ -1442,7 +1639,7 @@ async fn startup_steps(app: AppHandle) {
         .map(|state| state.paths.data_dir().display().to_string());
     progress.detail = Some(match data_dir {
         Some(dir) => format!("Datos en {dir}"),
-        None => "Preparando los directorios de Nebula".to_owned(),
+        None => "Preparando los directorios de Obsidia".to_owned(),
     });
     emit_startup(&app, progress.clone());
     tokio::time::sleep(Duration::from_millis(220)).await;
@@ -1516,7 +1713,7 @@ async fn startup_steps(app: AppHandle) {
     progress.step = 5;
     progress.percent = 100;
     progress.label = "Listo".to_owned();
-    progress.detail = Some("Abriendo Nebula Launcher".to_owned());
+    progress.detail = Some("Abriendo Obsidia".to_owned());
     progress.done = true;
     emit_startup(&app, progress);
 
@@ -1611,6 +1808,9 @@ pub fn run() {
                 sign_in_cancel: Mutex::new(None),
                 sign_in_code: Mutex::new(None),
                 startup: Mutex::new(StartupProgress::new()),
+                news: Mutex::new(None),
+                news_http: news_client()?,
+                mc_token: Mutex::new(None),
             });
             // `bundle.icon` empieza por `icons/icon.png` (512×512), así que este
             // es el icono de Halloween que Tauri incrusta para la ventana. Si el
@@ -1716,10 +1916,18 @@ pub fn run() {
             play_instance,
             stop_instance,
             game_states,
+            fetch_news,
+            get_skin_profile,
+            upload_skin,
+            apply_library_skin,
+            reset_skin,
+            set_cape,
+            list_skin_library,
+            delete_library_skin,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|e| {
-            eprintln!("error al iniciar Nebula: {e}");
+            eprintln!("error al iniciar Obsidia: {e}");
             std::process::exit(1);
         });
 }

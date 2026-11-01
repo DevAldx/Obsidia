@@ -1,4 +1,4 @@
-// Espejo de los tipos serializados por nebula-core.
+// Espejo de los tipos serializados por nebula-core (núcleo de Obsidia).
 
 export type Theme = "dark" | "black" | "purple";
 export type BackgroundFit = "cover" | "contain" | "tile";
@@ -202,4 +202,54 @@ export interface ImportStateEvent {
   state: ImportState;
   instance_id: string | null;
   message: string | null;
+}
+
+export type NewsKind = "news" | "release" | "snapshot";
+
+export interface NewsItem {
+  id: string;
+  kind: NewsKind;
+  title: string;
+  summary: string;
+  /** AAAA-MM-DD */
+  date: string;
+  image_url: string | null;
+  link: string | null;
+  version: string | null;
+}
+
+export interface NewsFeed {
+  fetched_at: number;
+  items: NewsItem[];
+  stale: boolean;
+}
+
+export type SkinVariant = "classic" | "slim";
+
+export interface SkinInfo {
+  id: string;
+  url: string;
+  variant: SkinVariant;
+  active: boolean;
+}
+
+export interface CapeInfo {
+  id: string;
+  url: string;
+  alias: string;
+  active: boolean;
+}
+
+export interface SkinProfile {
+  username: string;
+  skins: SkinInfo[];
+  capes: CapeInfo[];
+}
+
+export interface LibrarySkin {
+  id: string;
+  name: string;
+  variant: SkinVariant;
+  added_at: number;
+  data_base64: string;
 }

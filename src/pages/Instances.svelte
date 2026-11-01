@@ -1,341 +1,685 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+  import { fade } from "svelte/transition";
   import { app } from "../lib/app.svelte";
-  import ImportByCodeModal from "../components/ImportByCodeModal.svelte";
-  import InstanceModal from "../components/InstanceModal.svelte";
-  import ModsModal from "../components/ModsModal.svelte";
+  import { api } from "../lib/api";
+  import { nav, type InstanceTab } from "../lib/nav.svelte";
+  import { toasts } from "../lib/toast.svelte";
+  import { lazyBackground } from "../lib/lazyBackground";
+  import { formatLastPlayed, formatMemory, formatPlaytime, javaLabel, loaderLabel } from "../lib/format";
   import PlayButton from "../components/PlayButton.svelte";
   import Icon from "../components/Icon.svelte";
-  import { api } from "../lib/api";
-  import { lazyBackground } from "../lib/lazyBackground";
-  import type { Instance } from "../lib/types";
+  import LogView from "../components/LogView.svelte";
+  import ModsPanel from "../components/ModsPanel.svelte";
+  import InstanceSettingsPanel from "../components/InstanceSettingsPanel.svelte";
+  import CreateInstanceModal from "../components/CreateInstanceModal.svelte";
+  import ImportByCodeModal from "../components/ImportByCodeModal.svelte";
 
-  let modal = $state<{ instance: Instance | null } | null>(null);
-  let modsFor = $state<Instance | null>(null);
+  let query = $state("");
+  let creating = $state(false);
   let importing = $state(false);
+  let addMenu = $state(false);
   let exportedPath = $state<string | null>(null);
-  let exportError = $state("");
-  let folderError = $state("");
 
-  async function openFolder(inst: Instance) {
-    folderError = "";
-    try {
-      await api.openInstanceFolder(inst.id, "");
-    } catch (e) {
-      folderError = e instanceof Error ? e.message : String(e);
+  onMount(() => {
+    if (nav.createRequested) {
+      nav.createRequested = false;
+      creating = true;
     }
-  }
+  });
 
-  async function exportInstance(inst: Instance) {
-    exportError = "";
+  const sorted = $derived(
+    [...app.list.instances].sort((a, b) => (b.last_played ?? 0) - (a.last_played ?? 0) || a.name.localeCompare(b.name)),
+  );
+  const filtered = $derived(
+    query.trim()
+      ? sorted.filter((i) =>
+          `${i.name} ${i.minecraft_version} ${i.loader} ${i.id}`.toLowerCase().includes(query.trim().toLowerCase()),
+        )
+      : sorted,
+  );
+
+  const current = $derived(
+    app.list.instances.find((i) => i.id === nav.instanceId) ?? app.selected ?? sorted[0] ?? null,
+  );
+  const bg = $derived(current ? app.backgrounds[current.id] : undefined);
+  const isMain = $derived(current?.id === app.settings?.selected_instance);
+
+  $effect(() => {
+    if (current) void app.ensureBackground(current.id);
+  });
+
+  // Al cambiar de instancia se oculta el resultado de exportar de la anterior.
+  $effect(() => {
+    current?.id;
     exportedPath = null;
+  });
+
+  const tabs: { id: InstanceTab; label: string }[] = [
+    { id: "overview", label: "Resumen" },
+    { id: "mods", label: "Mods" },
+    { id: "settings", label: "Ajustes" },
+    { id: "logs", label: "Registros" },
+  ];
+
+  function pick(id: string) {
+    nav.instanceId = id;
+  }
+
+  async function openFolder() {
+    if (!current) return;
     try {
-      exportedPath = await api.exportManifestTemplate(inst.id);
+      await api.openInstanceFolder(current.id, "");
     } catch (e) {
-      exportError = e instanceof Error ? e.message : String(e);
+      toasts.error(e, "No se pudo abrir la carpeta");
     }
   }
 
-  function loaderLabel(inst: Instance): string {
-    return inst.loader === "fabric" ? `Fabric ${inst.loader_version ?? ""}`.trim() : "Vanilla";
+  async function exportManifest() {
+    if (!current) return;
+    try {
+      exportedPath = await api.exportManifestTemplate(current.id);
+      toasts.success("Plantilla de manifiesto exportada");
+    } catch (e) {
+      toasts.error(e, "No se pudo exportar");
+    }
+  }
+
+  function onWindowClick(e: MouseEvent) {
+    if (addMenu && !(e.target as HTMLElement).closest(".add-wrap")) addMenu = false;
   }
 </script>
 
-<div class="head">
-  <div class="head-text">
-    <h1>Biblioteca de instancias</h1>
-    <p class="muted">Gestiona, selecciona y personaliza tus instancias de Minecraft.</p>
-  </div>
-  <div class="head-actions">
-    <button class="btn" onclick={() => (importing = true)}>Importar por código</button>
-    <button class="btn primary" onclick={() => (modal = { instance: null })}>Crear instancia</button>
-  </div>
+<svelte:window onclick={onWindowClick} />
+
+<div class="library">
+  <!-- ───────────── Lista ───────────── -->
+  <aside class="list">
+    <div class="list-head">
+      <h1>Instancias</h1>
+      <span class="count">{app.list.instances.length}</span>
+      <span class="spacer"></span>
+      <div class="add-wrap">
+        <button class="btn primary sm" onclick={() => (addMenu = !addMenu)} aria-haspopup="menu" aria-expanded={addMenu}>
+          <Icon name="plus" size={15} /> Nueva
+        </button>
+        {#if addMenu}
+          <div class="add-menu" role="menu">
+            <button role="menuitem" onclick={() => { addMenu = false; creating = true; }}>
+              <Icon name="plus" size={16} />
+              <span><strong>Crear instancia</strong><span class="hint">Elige versión y loader</span></span>
+            </button>
+            <button role="menuitem" onclick={() => { addMenu = false; importing = true; }}>
+              <Icon name="download" size={16} />
+              <span><strong>Importar por código</strong><span class="hint">Desde un manifiesto compartido</span></span>
+            </button>
+          </div>
+        {/if}
+      </div>
+    </div>
+
+    {#if app.list.instances.length > 3}
+      <div class="search">
+        <Icon name="search" size={15} />
+        <input class="input" bind:value={query} placeholder="Buscar…" aria-label="Buscar instancias" />
+      </div>
+    {/if}
+
+    <div class="rows">
+      {#each filtered as i (i.id)}
+        {@const tbg = app.backgrounds[i.id]}
+        {@const state = app.games[i.id]}
+        <button class="row" class:active={current?.id === i.id} onclick={() => pick(i.id)} use:lazyBackground={i.id}>
+          <span class="thumb" class:obsidia-bg={!tbg} style:background-image={tbg ? `url(${tbg})` : undefined}></span>
+          <span class="row-text">
+            <span class="row-name">
+              {i.name}
+              {#if i.id === app.settings?.selected_instance}<Icon name="star" size={12} />{/if}
+            </span>
+            <span class="row-meta">{i.minecraft_version} · {loaderLabel(i)}</span>
+          </span>
+          <span
+            class="dot"
+            class:live={state === "running"}
+            class:busy={state === "preparing"}
+            class:ok={!state && i.installed}
+            title={state === "running" ? "En juego" : state === "preparing" ? "Preparando" : i.installed ? "Instalada" : "Se descargará al jugar"}
+          ></span>
+        </button>
+      {:else}
+        {#if app.list.instances.length > 0}
+          <p class="hint pad">Nada coincide con «{query}».</p>
+        {/if}
+      {/each}
+    </div>
+
+    {#if app.list.broken.length > 0}
+      <div class="alert warn broken">
+        <Icon name="alert" size={16} />
+        <div>
+          <strong>{app.list.broken.length} instancia(s) con errores</strong>
+          {#each app.list.broken as b (b.id)}<p class="hint"><span class="mono">{b.id}</span>: {b.error}</p>{/each}
+        </div>
+      </div>
+    {/if}
+  </aside>
+
+  <!-- ───────────── Detalle ───────────── -->
+  <section class="detail">
+    {#if current}
+      {#key current.id}
+        <div class="detail-inner" in:fade={{ duration: app.settings?.ui.animations === false ? 0 : 160 }}>
+          <header class="banner" class:obsidia-bg={!bg} style:background-image={bg ? `url(${bg})` : undefined}>
+            <div class="banner-shade"></div>
+            <div class="banner-top">
+              <span class="tag mono">{current.id}</span>
+              {#if isMain}
+                <span class="tag accent"><Icon name="star" size={12} /> Principal</span>
+              {:else}
+                <button class="tag action" onclick={() => app.select(current.id)} title="Mostrar en Inicio">
+                  <Icon name="star" size={12} /> Hacer principal
+                </button>
+              {/if}
+            </div>
+            <div class="banner-main">
+              <div class="banner-text">
+                <h1 class="name">{current.name}</h1>
+                <p class="meta">Minecraft {current.minecraft_version} · {loaderLabel(current)} · {current.mod_count} mods</p>
+              </div>
+              <div class="banner-actions">
+                <PlayButton id={current.id} />
+                <button class="glass-btn" title="Abrir carpeta" onclick={openFolder}><Icon name="folder" size={17} /></button>
+                <button class="glass-btn" title="Exportar plantilla de manifiesto" onclick={exportManifest}><Icon name="share" size={17} /></button>
+              </div>
+            </div>
+          </header>
+
+          <div class="tabs" role="tablist">
+            {#each tabs as t (t.id)}
+              <button role="tab" aria-selected={nav.instanceTab === t.id} class:active={nav.instanceTab === t.id} onclick={() => (nav.instanceTab = t.id)}>
+                {t.label}
+                {#if t.id === "mods"}<span class="count">{current.mod_count}</span>{/if}
+                {#if t.id === "logs" && app.games[current.id]}<span class="dot live"></span>{/if}
+              </button>
+            {/each}
+          </div>
+
+          <div class="tab-body">
+            {#if app.errors[current.id]}
+              <div class="alert run-error">
+                <Icon name="alert" size={16} />
+                <span>{app.errors[current.id]}</span>
+                {#if nav.instanceTab !== "logs"}<button class="btn sm ghost" onclick={() => (nav.instanceTab = "logs")}>Ver registros</button>{/if}
+              </div>
+            {/if}
+
+            {#if nav.instanceTab === "overview"}
+              <div class="stats">
+                <div class="stat big">
+                  <span class="stat-label"><Icon name="clock" size={14} /> Tiempo jugado</span>
+                  <strong class="display">{formatPlaytime(current.total_playtime_secs)}</strong>
+                  <span class="hint">Última sesión: {formatLastPlayed(current.last_played)}</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-label"><Icon name="puzzle" size={14} /> Mods</span>
+                  <strong class="display">{current.mod_count}</strong>
+                  <button class="link" onclick={() => (nav.instanceTab = "mods")}>Gestionar</button>
+                </div>
+                <div class="stat">
+                  <span class="stat-label"><Icon name="cpu" size={14} /> Memoria</span>
+                  <strong class="display">{formatMemory(current.memory.max_mb)}</strong>
+                  <span class="hint">mín. {formatMemory(current.memory.min_mb)}</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-label"><Icon name="coffee" size={14} /> Java</span>
+                  <strong class="display small">{javaLabel(current, app.java)}</strong>
+                  <button class="link" onclick={() => (nav.instanceTab = "settings")}>Cambiar</button>
+                </div>
+                <div class="stat">
+                  <span class="stat-label"><Icon name="download" size={14} /> Estado</span>
+                  <strong class="display small">{current.installed ? "Instalada" : "Pendiente"}</strong>
+                  <span class="hint">{current.installed ? "Todo descargado en este PC" : "Se descarga al pulsar Jugar"}</span>
+                </div>
+              </div>
+
+              <div class="location">
+                <Icon name="folder" size={16} />
+                <span class="mono path">{app.info?.data_dir}/instances/{current.id}</span>
+                <button class="btn sm" onclick={openFolder}>Abrir</button>
+              </div>
+
+              {#if exportedPath}
+                <div class="alert info">
+                  <Icon name="check" size={16} />
+                  <span>Plantilla guardada en <span class="mono">{exportedPath}</span>. Súbela a tu servicio de manifiestos y rellena las URLs de cada mod.</span>
+                </div>
+              {/if}
+
+              <details class="explain">
+                <summary>¿Por qué en otro PC pone «se descargará al jugar»?</summary>
+                <p>
+                  Cada instancia es una carpeta independiente (<span class="mono">instance.json</span>, mods, config,
+                  mundos…). Minecraft, librerías, assets y Java son compartidos y viven fuera de ella. Si copias solo
+                  la carpeta de la instancia a otro PC, faltan esos archivos comunes: pulsa <strong>Jugar</strong> y
+                  Obsidia los descarga. Para evitarlo, copia también <span class="mono">versions</span>,
+                  <span class="mono">libraries</span>, <span class="mono">assets</span> y <span class="mono">java</span>
+                  del directorio de datos.
+                </p>
+              </details>
+            {:else if nav.instanceTab === "mods"}
+              <ModsPanel instance={current} />
+            {:else if nav.instanceTab === "settings"}
+              <InstanceSettingsPanel instance={current} />
+            {:else}
+              <LogView id={current.id} height="calc(100vh - 380px)" />
+            {/if}
+          </div>
+        </div>
+      {/key}
+    {:else}
+      <div class="empty">
+        <div class="empty-art obsidia-bg facet"></div>
+        <h1>Aún no tienes instancias</h1>
+        <p class="muted">Una instancia es un Minecraft independiente con su versión, mods y mundos.</p>
+        <div class="empty-actions">
+          <button class="btn primary" onclick={() => (creating = true)}><Icon name="plus" size={16} /> Crear instancia</button>
+          <button class="btn" onclick={() => (importing = true)}>Importar por código</button>
+        </div>
+      </div>
+    {/if}
+  </section>
 </div>
 
-<details class="card help">
-  <summary>¿Cómo funcionan las instancias y por qué en otro PC pone «se descargará al jugar»?</summary>
-  <div class="help-body">
-    <p>
-      Cada instancia es una carpeta independiente dentro de
-      <span class="mono">{app.info?.data_dir}/instances/</span> (por ejemplo,
-      <span class="mono">NBL-K7P2X9</span>). Dentro están <span class="mono">instance.json</span>
-      (nombre, versión, RAM, Java), <span class="mono">mods</span>,
-      <span class="mono">config</span>, <span class="mono">resourcepacks</span>,
-      <span class="mono">shaderpacks</span> y <span class="mono">saves</span>.
-    </p>
-    <p>
-      Minecraft, las librerías, los assets y Java son <strong>compartidos</strong> y viven fuera de
-      la instancia. Si copias solo su carpeta a otro PC, la instancia aparece como
-      «se descargará al jugar» porque faltan esos archivos comunes, no porque tengas que
-      configurar nada: pulsa <strong>JUGAR</strong> y Nebula los descarga para ese PC.
-    </p>
-    <p>
-      Para evitar la descarga, copia también las carpetas <span class="mono">versions</span>,
-      <span class="mono">libraries</span>, <span class="mono">assets</span> y
-      <span class="mono">java</span> del directorio de datos. El engranaje de cada tarjeta es
-      opcional: solo cambia RAM, Java y argumentos; la versión y el loader quedan fijados al crear
-      la instancia. Si la instancia guardó un Java manual de otro PC y esa ruta ya no existe,
-      elige <strong>Automático</strong> para que Nebula descargue el JRE que pida la versión. El
-      icono de carpeta abre la raíz de la instancia para copiarla.
-    </p>
-  </div>
-</details>
-{#if folderError}<p class="error">{folderError}</p>{/if}
-
-{#if app.list.broken.length > 0}
-  <div class="card warn">
-    <h2>Instancias con errores</h2>
-    {#each app.list.broken as b}
-      <p class="error"><span class="mono">{b.id}</span>: {b.error}</p>
-    {/each}
-  </div>
-{/if}
-
-{#if app.list.instances.length === 0}
-  <div class="card empty-state">
-    <h2>Sin instancias</h2>
-    <p class="muted">Crea la primera instancia con el botón "Crear instancia" o impórtala por código.</p>
-  </div>
-{:else}
-  <div class="gallery">
-    {#each app.list.instances as inst (inst.id)}
-      {@const selected = app.settings?.selected_instance === inst.id}
-      {@const thumbBg = app.backgrounds[inst.id]}
-      <article class="instance-card" class:selected use:lazyBackground={inst.id}>
-        <div class="thumb" class:nebula-bg={!thumbBg} style:background-image={thumbBg ? `url(${thumbBg})` : undefined}>
-          <div class="thumb-overlay"></div>
-          <div class="thumb-top">
-            <span class="pill mono">{inst.id}</span>
-            {#if selected}<span class="pill active">Seleccionada</span>{/if}
-            <span class="spacer"></span>
-            <span
-              class="pill"
-              title={inst.installed
-                ? "Minecraft y Java ya están descargados en este PC."
-                : "Los mods y ajustes ya están en la carpeta; Minecraft, librerías y Java se descargan al pulsar JUGAR."}
-            >{inst.installed ? "Instalada" : "Se descargará al jugar"}</span>
-          </div>
-          <div class="thumb-bottom">
-            <div>
-              <p class="instance-name">{inst.name}</p>
-              <p class="instance-meta">Minecraft {inst.minecraft_version} · {loaderLabel(inst)}</p>
-            </div>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="meta-row">
-            <span class="meta-pill">{inst.mod_count} mods</span>
-            <span class="meta-pill">{inst.memory.max_mb} MB RAM</span>
-            <span class="meta-pill">{loaderLabel(inst)}</span>
-          </div>
-          {#if app.errors[inst.id]}<p class="error">{app.errors[inst.id]}</p>{/if}
-          <div class="actions">
-            <PlayButton id={inst.id} />
-            <button class="btn" disabled={selected} onclick={() => app.select(inst.id)}>
-              {selected ? "Seleccionada" : "Seleccionar"}
-            </button>
-            <div class="actions-group">
-              <button class="btn icon" title="Mods" onclick={() => (modsFor = inst)}><Icon name="puzzle" size={17} /></button>
-              <button class="btn icon" title="Abrir carpeta de la instancia" onclick={() => openFolder(inst)}><Icon name="folder" size={17} /></button>
-              <button class="btn icon" title="Exportar manifiesto" onclick={() => exportInstance(inst)}><Icon name="upload" size={17} /></button>
-              <button class="btn icon" title="Ajustes de la instancia (opcional)" onclick={() => (modal = { instance: inst })}><Icon name="settings" size={17} /></button>
-            </div>
-          </div>
-        </div>
-      </article>
-    {/each}
-  </div>
-{/if}
-
-{#if exportedPath}
-  <br />
-  <p class="hint">Plantilla guardada en <span class="mono">{exportedPath}</span>. Súbela donde vayas a alojar tus manifiestos y rellena las URLs de cada mod.</p>
-{/if}
-{#if exportError}<p class="error">{exportError}</p>{/if}
-
-{#if modal}
-  <InstanceModal instance={modal.instance} onclose={() => (modal = null)} />
-{/if}
-{#if modsFor}
-  <ModsModal instance={modsFor} onclose={() => (modsFor = null)} />
+{#if creating}
+  <CreateInstanceModal
+    onclose={(id) => {
+      creating = false;
+      if (id) nav.openInstance(id);
+    }}
+  />
 {/if}
 {#if importing}
-  <ImportByCodeModal onclose={() => (importing = false)} />
+  <ImportByCodeModal
+    onclose={() => {
+      importing = false;
+      if (app.importedId) nav.openInstance(app.importedId);
+    }}
+  />
 {/if}
 
 <style>
-  .head {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 16px;
-  }
-  .head-text {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .head-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-  .warn {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .help {
-    padding: 0;
-    overflow: hidden;
-  }
-  .help summary {
-    cursor: pointer;
-    padding: 16px 22px;
-    color: var(--muted);
-    font-size: 13px;
-    font-weight: 600;
-  }
-  .help[open] summary {
-    border-bottom: 1px solid var(--border);
-    color: var(--text);
-  }
-  .help-body {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 16px 22px 20px;
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.55;
-  }
-  .help-body strong {
-    color: var(--text);
-  }
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    text-align: center;
-    align-items: center;
-  }
-  .gallery {
+  .library {
     display: grid;
-    grid-template-columns: repeat(12, 1fr);
-    gap: clamp(14px, 3vw, 18px);
+    grid-template-columns: 290px minmax(0, 1fr);
+    height: 100%;
   }
-  .instance-card {
-    grid-column: span 12;
+
+  /* ── Lista ── */
+  .list {
     display: flex;
     flex-direction: column;
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--border);
-    overflow: hidden;
-    background: radial-gradient(circle at top, rgb(167 139 250 / 0.12), transparent 60%), rgb(var(--surface) / var(--surface-alpha));
-    box-shadow: 0 70px 100px -90px var(--accent-glow);
-    transition: transform var(--ease), border-color var(--ease), box-shadow var(--ease);
-    content-visibility: auto;
-    contain-intrinsic-size: auto 380px;
+    gap: 10px;
+    min-height: 0;
+    padding: 18px 12px 12px 16px;
+    border-right: 1px solid var(--border);
+    background: rgb(var(--surface) / 0.55);
   }
-  .instance-card:hover {
-    transform: translateY(-6px);
-  }
-  .instance-card.selected {
-    border-color: var(--border-strong);
-    box-shadow: 0 60px 100px -80px var(--accent-glow);
-  }
-  .thumb {
-    position: relative;
-    height: clamp(180px, 26vw, 240px);
-    background-size: cover;
-    background-position: center;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-  }
-  .thumb-overlay {
-    position: absolute;
-    inset: 0;
-    background:
-      radial-gradient(circle at top, rgb(8 7 16 / 0.2), transparent 55%),
-      linear-gradient(to top, rgb(7 6 15 / 0.98) 10%, rgb(7 6 15 / 0.6) 40%, transparent 80%);
-  }
-  .thumb > * {
-    position: relative;
-    z-index: 1;
-  }
-  .thumb-top {
+  .list-head {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 16px 20px;
-    flex-wrap: wrap;
+    padding: 0 4px;
   }
-  .thumb-bottom {
-    display: flex;
-    align-items: flex-end;
-    padding: 0 20px 18px;
+  .list-head h1 {
+    font-size: 20px;
   }
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    padding: 5px 12px;
-    border-radius: 999px;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.22em;
-    background: rgb(0 0 0 / 0.5);
-    border: 1px solid rgb(255 255 255 / 0.14);
+  .count {
+    font-size: 12px;
     color: var(--muted);
-  }
-  .pill.active {
-    color: var(--text);
-    border-color: rgb(167 139 250 / 0.6);
+    padding: 1px 7px;
+    border-radius: 6px;
+    background: rgb(255 255 255 / 0.06);
   }
   .spacer {
     flex: 1;
   }
-  .instance-name {
-    font-size: clamp(26px, 6vw, 42px);
-    font-weight: 650;
-    letter-spacing: -0.05em;
+  .add-wrap {
+    position: relative;
   }
-  .instance-meta {
-    color: rgb(236 235 245 / 0.88);
+  .add-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 30;
+    width: 250px;
+    padding: 6px;
+    background: rgb(var(--surface-2) / 1);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    box-shadow: 0 20px 50px -20px rgb(0 0 0 / 0.8);
   }
-  .card-body {
+  .add-menu button {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    padding: 9px;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+    color: var(--text);
+  }
+  .add-menu button:hover {
+    background: rgb(255 255 255 / 0.06);
+  }
+  .add-menu button > span {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding: 18px 22px 22px;
   }
-  .meta-row {
+  .add-menu strong {
+    font-size: 13px;
+  }
+  .add-menu :global(svg) {
+    margin-top: 2px;
+    color: var(--accent-hover);
+  }
+  .search {
+    position: relative;
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    align-items: center;
   }
-  .meta-pill {
-    padding: 6px 12px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
+  .search :global(svg) {
+    position: absolute;
+    left: 10px;
+    color: var(--muted);
+  }
+  .search input {
+    width: 100%;
+    padding-left: 32px;
+  }
+  .rows {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-right: -4px;
+    padding-right: 4px;
+  }
+  .row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px 7px 7px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+    color: var(--text);
+    transition: background var(--ease), border-color var(--ease);
+  }
+  .row:hover {
+    background: rgb(255 255 255 / 0.04);
+  }
+  .row.active {
+    background: color-mix(in srgb, var(--accent) 11%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .row.active::before {
+    content: "";
+    position: absolute;
+    left: -9px;
+    top: 12px;
+    bottom: 12px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--accent);
+  }
+  .thumb {
+    width: 48px;
+    height: 48px;
+    flex: none;
+    border-radius: 9px;
+    background-size: cover;
+    background-position: center;
+    border: 1px solid rgb(255 255 255 / 0.08);
+  }
+  .row-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .row-name {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .row-name :global(svg) {
+    flex: none;
+    color: var(--accent-hover);
+    fill: currentColor;
+  }
+  .row-meta {
     font-size: 12px;
     color: var(--muted);
   }
-  .actions {
+  .pad {
+    padding: 8px;
+  }
+  .broken {
+    max-height: 160px;
+    overflow-y: auto;
+  }
+
+  /* ── Detalle ── */
+  .detail {
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .detail-inner {
+    padding: 18px 24px 28px;
+  }
+  .banner {
+    position: relative;
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 210px;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background-size: cover;
+    background-position: center 35%;
+    border: 1px solid var(--border);
+  }
+  .banner-shade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(0deg, rgb(9 8 13 / 0.95) 0%, rgb(9 8 13 / 0.45) 50%, rgb(9 8 13 / 0.15) 100%);
+  }
+  .banner > :not(.banner-shade) {
+    position: relative;
+  }
+  .banner-top {
+    display: flex;
+    justify-content: space-between;
+    padding: 14px 16px;
+  }
+  .banner-top .tag {
+    background: rgb(9 8 13 / 0.6);
+  }
+  .tag.action {
+    cursor: pointer;
+  }
+  .tag.action:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+  .banner-main {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 0 20px 18px;
+  }
+  .banner-text {
+    min-width: 0;
+  }
+  .name {
+    font-size: clamp(26px, 3vw, 38px);
+    letter-spacing: -0.03em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .meta {
+    color: var(--text-2);
+    font-size: 13px;
+  }
+  .banner-actions {
+    display: flex;
+    gap: 8px;
+    flex: none;
+  }
+  .tabs {
+    margin-top: 14px;
+  }
+  .tab-body {
+    padding-top: 16px;
+  }
+  .run-error {
+    margin-bottom: 14px;
+    align-items: center;
+  }
+  .run-error span {
+    flex: 1;
+  }
+
+  /* Resumen: cuadrícula con una ficha grande */
+  .stats {
+    display: grid;
+    grid-template-columns: 1.5fr repeat(2, 1fr);
+    grid-auto-rows: minmax(104px, auto);
+    gap: 12px;
+  }
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    border-radius: var(--radius);
+    background: rgb(var(--surface) / var(--surface-alpha));
+    border: 1px solid var(--border);
+  }
+  .stat.big {
+    grid-row: span 2;
+    justify-content: flex-end;
+    background:
+      radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%),
+      rgb(var(--surface) / var(--surface-alpha));
+  }
+  .stat.big strong {
+    font-size: 40px;
+    line-height: 1.05;
+  }
+  .stat-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: auto;
+  }
+  .stat strong {
+    font-size: 24px;
+    letter-spacing: -0.02em;
+  }
+  .stat strong.small {
+    font-size: 17px;
+  }
+  .link {
+    align-self: flex-start;
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--accent-hover);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .location {
+    display: flex;
     align-items: center;
     gap: 10px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px dashed var(--border-strong);
+    color: var(--muted);
   }
-  .actions-group {
+  .path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-2);
+  }
+  .location + .alert {
+    margin-top: 12px;
+  }
+  .explain {
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .explain summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .explain p {
+    margin-top: 8px;
+    line-height: 1.6;
+    max-width: 760px;
+  }
+  .explain strong {
+    color: var(--text);
+  }
+
+  .empty {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-left: auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    height: 100%;
+    padding: 40px;
+    text-align: center;
   }
-  @media (min-width: 1080px) {
-    .instance-card {
-      grid-column: span 6;
+  .empty-art {
+    --facet: 18px;
+    width: 120px;
+    height: 120px;
+    margin-bottom: 8px;
+  }
+  .empty-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 6px;
+  }
+  @media (max-width: 1100px) {
+    .stats {
+      grid-template-columns: repeat(2, 1fr);
     }
   }
 </style>

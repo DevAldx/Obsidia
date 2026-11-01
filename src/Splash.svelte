@@ -4,6 +4,7 @@
   import { api } from "./lib/api";
   import { applyUi } from "./lib/app.svelte";
   import type { StartupProgress } from "./lib/types";
+  import Logo from "./components/Logo.svelte";
 
   const stepNames = ["Configuración", "Actualización", "Java", "Instancias", "Listo"];
 
@@ -11,12 +12,12 @@
     step: 0,
     total: stepNames.length,
     percent: 4,
-    label: "Iniciando Nebula",
+    label: "Iniciando Obsidia",
     detail: "Preparando la ventana de bienvenida…",
     done: false,
     version: "",
   });
-  let icon = $state("/nebula-icon.png");
+  let icon = $state<string | null>(null);
 
   onMount(() => {
     let disposed = false;
@@ -65,21 +66,15 @@
 </script>
 
 <div class="splash">
-  <div class="glow glow-a" aria-hidden="true"></div>
-  <div class="glow glow-b" aria-hidden="true"></div>
-  <div class="stars" aria-hidden="true"></div>
+  <div class="veins" aria-hidden="true"></div>
 
   <div class="stage">
-    <div class="mark-wrap">
-      <div class="ring" aria-hidden="true"></div>
-      <div class="orbit" aria-hidden="true"><span></span></div>
-      <img class="mark" src={icon} alt="" />
+    <div class="mark">
+      <Logo size={76} custom={icon} />
     </div>
 
-    <div class="titles">
-      <h1>Nebula <span>Launcher</span></h1>
-      <p class="tagline">Abriendo tu universo de juego</p>
-    </div>
+    <h1>OBSIDIA</h1>
+    <p class="tagline">Forjado para jugar</p>
 
     <div class="status" aria-live="polite">
       <div class="status-line">
@@ -96,29 +91,23 @@
       >
         <div class="fill" style:width={`${progress.percent}%`}></div>
       </div>
-      <p class="detail">{progress.detail ?? "Preparando Nebula…"}</p>
-    </div>
-
-    <div class="steps" aria-hidden="true">
-      {#each stepNames as name, index}
-        <div
-          class="step"
-          class:done={progress.step > index + 1}
-          class:current={progress.step === index + 1}
-        >
-          <span class="dot"></span>
-          <span class="name">{name}</span>
-        </div>
-      {/each}
+      <div class="steps" aria-hidden="true">
+        {#each stepNames as name, index}
+          <span
+            class="step"
+            class:done={progress.step > index + 1}
+            class:current={progress.step === index + 1}
+            title={name}
+          ></span>
+        {/each}
+        <span class="detail">{progress.detail ?? "Preparando Obsidia…"}</span>
+      </div>
     </div>
   </div>
 
   <footer>
     <span>v{progress.version || "…"}</span>
-    <span class="sep">·</span>
-    <span>© 2026 Nebula Launcher</span>
-    <span class="sep">·</span>
-    <span>No afiliado a Mojang Studios</span>
+    <span>© 2026 Obsidia · No afiliado a Mojang Studios</span>
   </footer>
 </div>
 
@@ -127,330 +116,122 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
     height: 100%;
     overflow: hidden;
     background:
-      radial-gradient(circle at 50% 42%, rgb(139 92 246 / 0.16), transparent 42%),
-      linear-gradient(160deg, #090716 0%, var(--background) 55%, #05040b 100%);
+      radial-gradient(420px 260px at 50% 38%, rgb(160 107 255 / 0.2), transparent 70%),
+      linear-gradient(170deg, #110d1a 0%, #09080d 60%, #060509 100%);
     color: var(--text);
     user-select: none;
+    border: 1px solid rgb(255 255 255 / 0.06);
   }
-
-  .glow {
-    position: absolute;
-    width: 300px;
-    height: 300px;
-    border-radius: 50%;
-    filter: blur(70px);
-    pointer-events: none;
-    opacity: 0.55;
-  }
-  .glow-a {
-    top: -140px;
-    left: -100px;
-    background: rgb(139 92 246 / 0.5);
-    animation: drift 9s ease-in-out infinite alternate;
-  }
-  .glow-b {
-    right: -120px;
-    bottom: -160px;
-    background: rgb(56 189 248 / 0.35);
-    animation: drift 11s ease-in-out infinite alternate-reverse;
-  }
-
-  .stars {
+  /* Vetas isométricas fijas: sin animación ni desenfoque. */
+  .veins {
     position: absolute;
     inset: 0;
-    pointer-events: none;
-    opacity: 0.7;
+    opacity: 0.6;
     background-image:
-      radial-gradient(1.4px 1.4px at 12% 22%, rgb(255 255 255 / 0.7) 50%, transparent 51%),
-      radial-gradient(1px 1px at 26% 72%, rgb(255 255 255 / 0.5) 50%, transparent 51%),
-      radial-gradient(1.6px 1.6px at 42% 14%, rgb(255 255 255 / 0.55) 50%, transparent 51%),
-      radial-gradient(1px 1px at 58% 84%, rgb(255 255 255 / 0.45) 50%, transparent 51%),
-      radial-gradient(1.2px 1.2px at 74% 28%, rgb(255 255 255 / 0.6) 50%, transparent 51%),
-      radial-gradient(1px 1px at 88% 66%, rgb(255 255 255 / 0.5) 50%, transparent 51%),
-      radial-gradient(1.4px 1.4px at 94% 12%, rgb(255 255 255 / 0.45) 50%, transparent 51%),
-      radial-gradient(1px 1px at 8% 88%, rgb(255 255 255 / 0.4) 50%, transparent 51%);
-    animation: twinkle 4.5s ease-in-out infinite alternate;
+      repeating-linear-gradient(30deg, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 38px),
+      repeating-linear-gradient(150deg, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 38px);
+    mask-image: radial-gradient(circle at 50% 45%, #000 0%, transparent 70%);
+    pointer-events: none;
   }
-
   .stage {
     position: relative;
-    z-index: 1;
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: min(430px, calc(100% - 56px));
-    animation: open-window 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-  }
-
-  .mark-wrap {
-    position: relative;
-    display: grid;
-    place-items: center;
-    width: 84px;
-    height: 84px;
-    margin-bottom: 12px;
-    animation: float 5s ease-in-out infinite;
+    justify-content: center;
+    padding: 0 48px;
   }
   .mark {
-    position: relative;
-    z-index: 2;
-    width: 72px;
-    height: 72px;
-    border-radius: 20px;
-    object-fit: cover;
-    border: 1px solid rgb(255 255 255 / 0.18);
-    box-shadow:
-      0 0 0 6px rgb(139 92 246 / 0.08),
-      0 24px 48px -18px var(--accent-glow);
-  }
-  .ring {
-    position: absolute;
-    inset: -6px;
-    border-radius: 28px;
-    padding: 1px;
-    background: conic-gradient(
-      from 0deg,
-      transparent 0deg,
-      var(--accent-hover) 90deg,
-      transparent 180deg,
-      transparent 360deg
-    );
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    mask-composite: exclude;
-    animation: spin 4.5s linear infinite;
-  }
-  .orbit {
-    position: absolute;
-    inset: -14px;
-    border-radius: 32px;
-    animation: spin 7s linear infinite;
-  }
-  .orbit span {
-    position: absolute;
-    top: 50%;
-    left: -2px;
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--accent-hover);
-    box-shadow: 0 0 10px 2px var(--accent-glow);
-  }
-
-  .titles {
-    text-align: center;
+    margin-bottom: 16px;
+    animation: hover 3.6s ease-in-out infinite;
   }
   h1 {
-    margin: 0;
-    font-size: 22px;
+    font-family: var(--font-display);
+    font-size: 30px;
     font-weight: 700;
-    letter-spacing: 0.28em;
-    text-transform: uppercase;
-    text-indent: 0.28em;
-    line-height: 1.2;
-  }
-  h1 span {
-    color: var(--accent-hover);
-    font-weight: 400;
+    letter-spacing: 0.32em;
+    margin-right: -0.32em;
   }
   .tagline {
-    margin-top: 5px;
-    color: var(--muted);
-    font-size: 10px;
-    letter-spacing: 0.22em;
+    margin-top: 4px;
+    font-size: 11px;
+    letter-spacing: 0.26em;
     text-transform: uppercase;
+    color: var(--muted);
   }
-
   .status {
-    width: 100%;
-    margin-top: 22px;
+    width: min(400px, 100%);
+    margin-top: 30px;
   }
   .status-line {
     display: flex;
-    align-items: baseline;
     justify-content: space-between;
-    gap: 16px;
+    align-items: baseline;
     margin-bottom: 8px;
+    font-size: 12px;
   }
   .label {
-    font-size: 13px;
     font-weight: 600;
-    color: var(--text);
   }
   .percent {
-    font-size: 11px;
-    color: var(--accent-hover);
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.08em;
+    color: var(--accent-hover);
+    font-weight: 600;
   }
   .track {
-    position: relative;
-    height: 5px;
-    border-radius: 999px;
-    overflow: hidden;
+    height: 4px;
     background: rgb(255 255 255 / 0.08);
-    border: 1px solid rgb(255 255 255 / 0.05);
+    overflow: hidden;
   }
   .fill {
-    position: relative;
     height: 100%;
-    border-radius: inherit;
-    background: linear-gradient(90deg, var(--accent), var(--accent-hover));
-    box-shadow: 0 0 16px var(--accent-glow);
-    transition: width 650ms cubic-bezier(0.22, 0.8, 0.24, 1);
-    overflow: hidden;
+    background: var(--accent);
+    transition: width 360ms cubic-bezier(0.2, 0.7, 0.2, 1);
   }
-  .fill::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.5), transparent);
-    transform: translateX(-100%);
-    animation: shimmer 1.7s ease-in-out infinite;
-  }
-  .detail {
-    min-height: 17px;
-    margin-top: 8px;
-    color: var(--muted);
-    font-size: 11px;
-    line-height: 1.5;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
   .steps {
     display: flex;
-    justify-content: space-between;
-    width: 100%;
-    margin-top: 18px;
-    gap: 6px;
+    align-items: center;
+    gap: 5px;
+    margin-top: 10px;
   }
   .step {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    color: var(--muted);
-    opacity: 0.5;
-    transition: opacity 300ms ease, color 300ms ease;
-  }
-  .step .dot {
-    width: 100%;
-    max-width: 56px;
-    height: 3px;
-    border-radius: 999px;
-    background: rgb(255 255 255 / 0.12);
-    transition: background 300ms ease, box-shadow 300ms ease;
-  }
-  .step .name {
-    font-size: 8px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-  .step.current {
-    color: var(--text);
-    opacity: 1;
-  }
-  .step.current .dot {
-    background: var(--accent-hover);
-    box-shadow: 0 0 12px var(--accent-glow);
-    animation: pulse 1.6s ease-in-out infinite;
+    width: 6px;
+    height: 6px;
+    background: rgb(255 255 255 / 0.15);
+    transition: background 200ms ease;
   }
   .step.done {
-    opacity: 0.9;
-    color: var(--accent-hover);
-  }
-  .step.done .dot {
     background: var(--accent);
   }
-
-  footer {
-    position: absolute;
-    bottom: 14px;
-    left: 0;
-    right: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 7px;
-    padding: 0 20px;
+  .step.current {
+    background: var(--accent-hover);
+    animation: blink 900ms ease-in-out infinite;
+  }
+  .detail {
+    margin-left: 8px;
+    font-size: 11px;
     color: var(--muted);
-    font-size: 9px;
-    letter-spacing: 0.08em;
-    opacity: 0.75;
-    z-index: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  footer .sep {
-    opacity: 0.5;
+  footer {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 18px;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: rgb(255 255 255 / 0.35);
   }
-
-  @keyframes open-window {
-    from {
-      opacity: 0;
-      transform: translateY(12px) scale(0.965);
-      filter: blur(5px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-      filter: blur(0);
-    }
+  @keyframes hover {
+    50% { transform: translateY(-4px); }
   }
-  @keyframes float {
-    0%,
-    100% {
-      transform: translateY(0);
-    }
-    50% {
-      transform: translateY(-4px);
-    }
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-  @keyframes pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.55;
-    }
-  }
-  @keyframes shimmer {
-    0% {
-      transform: translateX(-100%);
-    }
-    60%,
-    100% {
-      transform: translateX(100%);
-    }
-  }
-  @keyframes twinkle {
-    from {
-      opacity: 0.45;
-    }
-    to {
-      opacity: 0.8;
-    }
-  }
-  @keyframes drift {
-    from {
-      transform: translate3d(0, 0, 0) scale(1);
-    }
-    to {
-      transform: translate3d(28px, 18px, 0) scale(1.12);
-    }
+  @keyframes blink {
+    50% { opacity: 0.4; }
   }
 </style>

@@ -15,7 +15,7 @@ El script compila, sustituye el AppRun para que el AppImage prefiera
 WebKitGTK/GTK del sistema (arranque rápido) y vuelve a firmar el AppImage.
 Si el sistema no tiene WebKitGTK 4.1, usa la copia empaquetada.
 Para forzar la copia empaquetada al probar:
-    NEBULA_BUNDLED_WEBKIT=1 "./src-tauri/target/release/bundle/appimage/Nebula Launcher_0.3.1_amd64.AppImage"
+    NEBULA_BUNDLED_WEBKIT=1 "./src-tauri/target/release/bundle/appimage/Obsidia_0.4.0_amd64.AppImage"
 
 Salida:
     src-tauri/target/release/bundle/appimage/
