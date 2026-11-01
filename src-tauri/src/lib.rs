@@ -1115,11 +1115,19 @@ async fn import_from_code(
             })
         };
         let result = async {
-            // Antes de instalar mods/configs se asegura el Java que pide la
-            // versión de Minecraft: así una importación deja la instancia
-            // realmente lista para jugar, no solo con los archivos.
-            let meta = state.installer.version_meta(&manifest.minecraft_version).await?;
-            java::ensure_for_meta(&state.paths, &JavaChoice::Auto, &meta, &reporter).await?;
+            // Antes de los mods se descarga Minecraft (juego, librerías,
+            // assets y loader) y el Java que pide: la instancia importada queda
+            // lista y «Jugar» arranca sin esperar más descargas.
+            let prepared = state
+                .installer
+                .prepare(
+                    &manifest.minecraft_version,
+                    manifest.loader,
+                    manifest.loader_version.as_deref(),
+                    &reporter,
+                )
+                .await?;
+            java::ensure_for_meta(&state.paths, &JavaChoice::Auto, &prepared.meta, &reporter).await?;
             share::install(&state.paths, &state.instances, &manifest, &reporter).await
         }
         .await;

@@ -22,22 +22,52 @@
     // Un resultado de una importación anterior no debe aparecer al reabrir.
     app.importedId = null;
     app.importError = null;
+    // Viene de Descubrir con un código ya escrito: se busca aunque esté incompleto,
+    // para que el error explique qué falla.
     if (code.trim()) void lookup();
   });
 
+  /** Los cortos se pasan a mayúsculas (el ID es `OBS-XXXXXX`); los largos son base64 y no se tocan. */
+  function normalized(raw: string): string {
+    const c = raw.trim();
+    return /^(obs|nbl)-[a-z0-9]{6}$/i.test(c) ? c.toUpperCase() : c;
+  }
+
+  /** ¿El texto ya parece un código entero? Así se busca solo al pegarlo o terminar de escribirlo. */
+  function looksComplete(c: string): boolean {
+    return /^(OBS|NBL)-[A-Z0-9]{6}$/.test(c) || (c.startsWith("OBS1-") && c.length > 24);
+  }
+
+  let lastLookup = "";
+
   async function lookup() {
+    const c = normalized(code);
+    if (!c) return;
+    lastLookup = c;
     lookupError = "";
     manifest = null;
-    if (!code.trim()) return;
     looking = true;
     try {
-      manifest = await api.fetchShareManifest(code.trim());
+      const found = await api.fetchShareManifest(c);
+      // Si mientras tanto cambió el código, esta respuesta ya no vale.
+      if (normalized(code) === c) manifest = found;
     } catch (e) {
-      lookupError = e instanceof Error ? e.message : String(e);
+      if (normalized(code) === c) lookupError = e instanceof Error ? e.message : String(e);
     } finally {
       looking = false;
     }
   }
+
+  // Busca solo en cuanto el código está completo (pegado o tecleado), con una
+  // pequeña espera para no buscar a cada tecla.
+  $effect(() => {
+    const c = normalized(code);
+    if (!looksComplete(c) || c === lastLookup || app.importBusy) return;
+    const t = setTimeout(() => {
+      if (normalized(code) !== lastLookup) void lookup();
+    }, 250);
+    return () => clearTimeout(t);
+  });
 
   async function install() {
     if (!manifest) return;
@@ -75,7 +105,8 @@
         class:pack={isPackCode}
         rows={isPackCode ? 4 : 1}
         bind:value={code}
-        placeholder="OBS1-… o OBS-K7P2X9"
+        disabled={app.importBusy}
+        placeholder="Pega aquí el código (OBS-K7P2X9 u OBS1-…)"
         aria-label="Código"
         onkeydown={(e) => {
           if (e.key === "Enter") {
@@ -84,7 +115,7 @@
           }
         }}
       ></textarea>
-      <button class="btn" onclick={lookup} disabled={looking || !code.trim()}>
+      <button class="btn" onclick={lookup} disabled={looking || !code.trim() || app.importBusy}>
         {looking ? "Buscando…" : "Buscar"}
       </button>
     </div>

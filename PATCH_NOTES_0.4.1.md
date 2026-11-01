@@ -27,6 +27,12 @@ configuración, y **Importar por código** la instala tal cual.
 
 ### Importar
 
+- **Busca solo al pegar.** En cuanto el código está completo aparece la vista
+  previa, sin pulsar Buscar. También al pegarlo en Descubrir. Los códigos
+  cortos se aceptan en minúsculas.
+- **Queda lista para jugar.** Instalar descarga también Minecraft (juego,
+  librerías, assets y Fabric) además de Java y los archivos del pack, así que
+  «Jugar» arranca sin más esperas.
 - Un único campo acepta códigos cortos y largos; ya no hay que configurar un
   servicio de manifiestos.
 - La vista previa muestra la RAM del pack.

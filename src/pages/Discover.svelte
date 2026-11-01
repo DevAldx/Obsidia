@@ -67,7 +67,13 @@
       </div>
     </div>
     <form class="import-form" onsubmit={(e) => { e.preventDefault(); startImport(); }}>
-      <input class="input mono" bind:value={code} placeholder="OBS1-… o OBS-K7P2X9" aria-label="Código de instancia" />
+      <input
+        class="input mono"
+        bind:value={code}
+        placeholder="Pega aquí el código"
+        aria-label="Código de instancia"
+        onpaste={() => setTimeout(() => code.trim() && startImport())}
+      />
       <button class="btn primary" type="submit">Buscar</button>
     </form>
   </section>
