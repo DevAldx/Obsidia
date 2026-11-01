@@ -16,6 +16,9 @@ import type {
   Account,
   SignInCodeEvent,
   NewsFeed,
+  SkinProfile,
+  SkinVariant,
+  LibrarySkin,
 } from "./types";
 
 /** Los comandos de Rust fallan con `{ message }`; lo normalizamos a Error. */
@@ -85,6 +88,14 @@ export const api = {
   checkAndPrepareUpdate: () => call<NebulaUpdateStatus>("check_and_prepare_update"),
   installUpdate: () => call<void>("install_update"),
   fetchNews: (force = false) => call<NewsFeed>("fetch_news", { force }),
+  getSkinProfile: () => call<SkinProfile>("get_skin_profile"),
+  uploadSkin: (name: string, variant: SkinVariant, dataBase64: string) =>
+    call<SkinProfile>("upload_skin", { name, variant, dataBase64 }),
+  applyLibrarySkin: (id: string) => call<SkinProfile>("apply_library_skin", { id }),
+  resetSkin: () => call<SkinProfile>("reset_skin"),
+  setCape: (capeId: string | null) => call<SkinProfile>("set_cape", { capeId }),
+  listSkinLibrary: () => call<LibrarySkin[]>("list_skin_library"),
+  deleteLibrarySkin: (id: string) => call<void>("delete_library_skin", { id }),
 };
 
 /** "-Xmx2G -XX:+UseG1GC" → ["-Xmx2G", "-XX:+UseG1GC"] */

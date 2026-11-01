@@ -60,6 +60,9 @@
             <Icon name="edit" size={16} /> Cambiar nombre
           </button>
         {/if}
+        <button class="item" role="menuitem" onclick={() => run(() => nav.openSettings("skin"))}>
+          <Icon name="shirt" size={16} /> Skin y capa
+        </button>
         <button class="item" role="menuitem" onclick={() => run(() => nav.openSettings("account"))}>
           <Icon name="settings" size={16} /> Gestionar cuenta
         </button>

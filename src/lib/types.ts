@@ -223,3 +223,33 @@ export interface NewsFeed {
   items: NewsItem[];
   stale: boolean;
 }
+
+export type SkinVariant = "classic" | "slim";
+
+export interface SkinInfo {
+  id: string;
+  url: string;
+  variant: SkinVariant;
+  active: boolean;
+}
+
+export interface CapeInfo {
+  id: string;
+  url: string;
+  alias: string;
+  active: boolean;
+}
+
+export interface SkinProfile {
+  username: string;
+  skins: SkinInfo[];
+  capes: CapeInfo[];
+}
+
+export interface LibrarySkin {
+  id: string;
+  name: string;
+  variant: SkinVariant;
+  added_at: number;
+  data_base64: string;
+}

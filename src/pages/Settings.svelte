@@ -10,10 +10,12 @@
   import SkinFace from "../components/SkinFace.svelte";
   import Appearance from "./Appearance.svelte";
   import About from "./About.svelte";
+  import Skins from "./Skins.svelte";
 
   const sections: { id: SettingsSection; label: string; icon: IconName; group: string }[] = [
     { id: "general", label: "General", icon: "settings", group: "Launcher" },
     { id: "account", label: "Cuenta", icon: "user", group: "Launcher" },
+    { id: "skin", label: "Skin y capa", icon: "shirt", group: "Launcher" },
     { id: "appearance", label: "Apariencia", icon: "palette", group: "Launcher" },
     { id: "updates", label: "Actualizaciones", icon: "refresh", group: "Launcher" },
     { id: "minecraft", label: "Minecraft", icon: "monitor", group: "Juego" },
@@ -198,6 +200,8 @@
             </details>
           {/if}
           {#if app.signInError}<div class="alert"><Icon name="alert" size={16} /><span>{app.signInError}</span></div>{/if}
+        {:else if nav.settingsSection === "skin"}
+          <Skins />
         {:else if nav.settingsSection === "appearance"}
           <Appearance />
         {:else if nav.settingsSection === "updates"}
@@ -383,7 +387,7 @@
     padding: 26px 32px 90px;
   }
   .inner > :global(*) {
-    max-width: 860px;
+    max-width: 920px;
   }
   .head {
     margin-bottom: 18px;

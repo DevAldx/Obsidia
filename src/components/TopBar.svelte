@@ -65,6 +65,17 @@
     </button>
   {/if}
 
+  {#if app.account?.kind === "microsoft"}
+    <button
+      class="skin-btn"
+      class:active={nav.page === "settings" && nav.settingsSection === "skin"}
+      onclick={() => nav.openSettings("skin")}
+      title="Skin y capa"
+    >
+      <Icon name="shirt" size={16} />
+      <span>Skin</span>
+    </button>
+  {/if}
   <AccountMenu />
 
   {#if win}
@@ -151,6 +162,31 @@
   .drag {
     flex: 1;
     align-self: stretch;
+  }
+  .skin-btn {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 36px;
+    padding: 0 12px;
+    margin-right: 6px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgb(255 255 255 / 0.03);
+    color: var(--text-2);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: background var(--ease), border-color var(--ease), color var(--ease);
+  }
+  .skin-btn:hover,
+  .skin-btn.active {
+    color: var(--text);
+    border-color: var(--border-strong);
+    background: rgb(255 255 255 / 0.07);
+  }
+  .skin-btn.active :global(svg) {
+    color: var(--accent-hover);
   }
   .activity {
     display: flex;

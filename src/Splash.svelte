@@ -144,7 +144,6 @@
     align-items: center;
     justify-content: center;
     padding: 0 48px;
-    animation: rise 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
   .mark {
     margin-bottom: 16px;
@@ -228,10 +227,6 @@
     font-size: 10px;
     letter-spacing: 0.06em;
     color: rgb(255 255 255 / 0.35);
-  }
-  @keyframes rise {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: none; }
   }
   @keyframes hover {
     50% { transform: translateY(-4px); }

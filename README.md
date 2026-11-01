@@ -32,6 +32,8 @@ con tu propia cuenta.
 - **Noticias**: noticias y notas de versión oficiales de Minecraft: Java Edition
   (`launchercontent.mojang.com`), con caché de 30 min y copia en disco para
   mostrarlas sin conexión.
+- **Skin y capa**: cambia la skin (PNG 64×64/64×32, clásico o slim) y la capa
+  de tu cuenta de Microsoft desde el launcher, con biblioteca local de skins.
 - **Personalización**: icono propio, tema, acento, transparencia, animaciones y
   fondo PNG/JPG/WEBP/GIF animado (Ajustes → Apariencia).
 - **Ventana de bienvenida**: animación con progreso real, comprobación de

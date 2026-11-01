@@ -35,6 +35,15 @@ instancias, las cuentas, los ajustes y los códigos `NBL-` se conservan tal cual
 
 ### Funciones
 
+- **Skin y capa** (botón «Skin» en la barra superior, menú de cuenta o Ajustes):
+  vista de frente y espalda dibujada en canvas, subida de PNG con vista previa
+  y detección automática del modelo slim, cambio u ocultación de las capas que
+  tiene la cuenta, vuelta a la skin por defecto y biblioteca local con las
+  skins subidas para volver a ponerlas con un clic. Solo para cuentas de
+  Microsoft (usa la API oficial de Minecraft Services).
+- **Pantalla de arranque instantánea**: `index.html` incluye una versión
+  estática del splash (logo, nombre y barra), así que la ventana nunca se ve
+  en negro mientras carga la interfaz.
 - **Noticias de Minecraft**: se leen los feeds públicos del launcher oficial
   (`launchercontent.mojang.com`), se cachean 30 minutos y se guarda una copia en
   disco para mostrarlas sin conexión.

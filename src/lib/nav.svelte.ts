@@ -5,6 +5,7 @@ export type InstanceTab = "overview" | "mods" | "settings" | "logs";
 export type SettingsSection =
   | "general"
   | "account"
+  | "skin"
   | "minecraft"
   | "java"
   | "appearance"

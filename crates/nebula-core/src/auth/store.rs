@@ -147,6 +147,17 @@ impl AccountStore {
         self.write_cache(account)
     }
 
+    /// Actualiza la skin del perfil cacheado tras cambiarla en Minecraft
+    /// Services, sin tocar el refresh token. No hace nada sin cuenta guardada.
+    pub fn update_cached_skin(&self, skin_url: Option<String>) -> Result<Option<Account>> {
+        let Some(mut account) = self.cached_account() else {
+            return Ok(None);
+        };
+        account.skin_url = skin_url;
+        self.write_cache(&account)?;
+        Ok(Some(account))
+    }
+
     fn write_cache(&self, account: &Account) -> Result<()> {
         let json = serde_json::to_vec_pretty(account).map_err(|e| CoreError::Json {
             path: self.cache_path.clone(),
