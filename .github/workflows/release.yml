@@ -33,7 +33,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ env.TAG }}
       - name: Comprobar versión y secreto
@@ -57,7 +57,7 @@ jobs:
     env:
       APPIMAGE_EXTRACT_AND_RUN: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ env.TAG }}
       - name: Dependencias del sistema
@@ -88,7 +88,7 @@ jobs:
     needs: check
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ env.TAG }}
       - uses: actions/setup-node@v4
@@ -114,7 +114,7 @@ jobs:
     needs: [check, linux, windows]
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ env.TAG }}
       - uses: actions/download-artifact@v4
@@ -123,8 +123,14 @@ jobs:
       - name: Generar latest.json
         env:
           GITHUB_REPO: ${{ github.repository }}
-          NOTES: "Obsidia ${{ needs.check.outputs.version }}: consulta las novedades en GitHub."
-        run: ./create_latest_json.sh
+          VERSION: ${{ needs.check.outputs.version }}
+        # El aviso de actualización del launcher muestra el primer párrafo
+        # de «## Cambios» de las notas de la versión.
+        run: |
+          NOTES="$(./scripts/release-summary.sh "PATCH_NOTES_$VERSION.md" "Obsidia $VERSION: consulta las novedades en GitHub.")"
+          export NOTES
+          echo "Notas del actualizador: $NOTES"
+          ./create_latest_json.sh
       - name: Crear la release
         env:
           GH_TOKEN: ${{ github.token }}
