@@ -1,6 +1,6 @@
 <script lang="ts">
   import { app } from "../lib/app.svelte";
-  import { api, joinArgs, splitArgs } from "../lib/api";
+  import { api, DEFAULT_SHARE_URL, joinArgs, splitArgs } from "../lib/api";
   import { nav, type SettingsSection } from "../lib/nav.svelte";
   import { updates } from "../lib/updates.svelte";
   import { toasts } from "../lib/toast.svelte";
@@ -294,13 +294,14 @@
         {:else if nav.settingsSection === "sharing"}
           <div class="group-block">
             <label class="field">
-              <span>URL base del servicio de manifiestos</span>
-              <input class="mono" bind:value={draft.sharingUrl} placeholder="https://ejemplo.com/manifests" />
+              <span>Servidor para compartir <span class="hint">(opcional)</span></span>
+              <input class="mono" bind:value={draft.sharingUrl} placeholder={DEFAULT_SHARE_URL} />
             </label>
             <p class="hint">
-              Un código como <span class="mono">OBS-K7P2X9</span> se busca en
-              <span class="mono">{"<esta URL>"}/OBS-K7P2X9.json</span>. Obsidia no aloja nada: necesitas tu propio
-              sitio (o uno de confianza) con esos JSON. Más detalles en el README.
+              Déjalo vacío para usar el servidor oficial de Obsidia. Ahí se guardan los códigos cortos como
+              <span class="mono">OBS-K7P2X9</span> con sus mods privados, imagen y configuración. Solo cámbialo si
+              montas tu propio servidor (carpeta <span class="mono">server/</span> del repositorio); quien importe
+              tus códigos necesitará entonces la misma URL.
             </p>
           </div>
         {:else}

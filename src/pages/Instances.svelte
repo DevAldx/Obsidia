@@ -14,12 +14,13 @@
   import InstanceSettingsPanel from "../components/InstanceSettingsPanel.svelte";
   import CreateInstanceModal from "../components/CreateInstanceModal.svelte";
   import ImportByCodeModal from "../components/ImportByCodeModal.svelte";
+  import ShareCodeModal from "../components/ShareCodeModal.svelte";
 
   let query = $state("");
   let creating = $state(false);
   let importing = $state(false);
   let addMenu = $state(false);
-  let exportedPath = $state<string | null>(null);
+  let sharing = $state(false);
 
   onMount(() => {
     if (nav.createRequested) {
@@ -49,12 +50,6 @@
     if (current) void app.ensureBackground(current.id);
   });
 
-  // Al cambiar de instancia se oculta el resultado de exportar de la anterior.
-  $effect(() => {
-    current?.id;
-    exportedPath = null;
-  });
-
   const tabs: { id: InstanceTab; label: string }[] = [
     { id: "overview", label: "Resumen" },
     { id: "mods", label: "Mods" },
@@ -72,16 +67,6 @@
       await api.openInstanceFolder(current.id, "");
     } catch (e) {
       toasts.error(e, "No se pudo abrir la carpeta");
-    }
-  }
-
-  async function exportManifest() {
-    if (!current) return;
-    try {
-      exportedPath = await api.exportManifestTemplate(current.id);
-      toasts.success("Plantilla de manifiesto exportada");
-    } catch (e) {
-      toasts.error(e, "No se pudo exportar");
     }
   }
 
@@ -111,7 +96,7 @@
             </button>
             <button role="menuitem" onclick={() => { addMenu = false; importing = true; }}>
               <Icon name="download" size={16} />
-              <span><strong>Importar por código</strong><span class="hint">Desde un manifiesto compartido</span></span>
+              <span><strong>Importar por código</strong><span class="hint">Pega un código compartido</span></span>
             </button>
           </div>
         {/if}
@@ -189,7 +174,7 @@
               <div class="banner-actions">
                 <PlayButton id={current.id} />
                 <button class="glass-btn" title="Abrir carpeta" onclick={openFolder}><Icon name="folder" size={17} /></button>
-                <button class="glass-btn" title="Exportar plantilla de manifiesto" onclick={exportManifest}><Icon name="share" size={17} /></button>
+                <button class="glass-btn" title="Compartir por código" onclick={() => (sharing = true)}><Icon name="share" size={17} /></button>
               </div>
             </div>
           </header>
@@ -248,13 +233,6 @@
                 <button class="btn sm" onclick={openFolder}>Abrir</button>
               </div>
 
-              {#if exportedPath}
-                <div class="alert info">
-                  <Icon name="check" size={16} />
-                  <span>Plantilla guardada en <span class="mono">{exportedPath}</span>. Súbela a tu servicio de manifiestos y rellena las URLs de cada mod.</span>
-                </div>
-              {/if}
-
               <details class="explain">
                 <summary>¿Por qué en otro PC pone «se descargará al jugar»?</summary>
                 <p>
@@ -297,6 +275,9 @@
       if (id) nav.openInstance(id);
     }}
   />
+{/if}
+{#if sharing && current}
+  <ShareCodeModal instance={current} onclose={() => (sharing = false)} />
 {/if}
 {#if importing}
   <ImportByCodeModal
@@ -634,9 +615,6 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--text-2);
-  }
-  .location + .alert {
-    margin-top: 12px;
   }
   .explain {
     margin-top: 14px;

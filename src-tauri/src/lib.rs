@@ -22,6 +22,8 @@ use obsidia_core::{
     auth::skins::{self, LibrarySkin, SkinProfile, SkinVariant},
     news::{self, NewsFeed},
     share::{self, InstanceManifest},
+    share_code::{self, ExportInput, ExportedCode},
+    share_upload::{self, Identity, UploadInput, UploadedPack},
     updater::{self, UpdateCheck},
     CoreError, ObsidiaPaths,
 };
@@ -1052,22 +1054,15 @@ fn open_instance_folder(
 // ───────────────────────────── Compartir por código ─────────────────────────────
 
 fn manifest_base_url(state: &AppState) -> CmdResult<String> {
-    let url = state
-        .settings()?
-        .sharing
-        .manifest_base_url
-        .clone()
-        .unwrap_or_default();
-    if url.trim().is_empty() {
-        return Err(CommandError::new(
-            "configura la URL del servicio de manifiestos en Configuración > Compartir antes de usar un código.",
-        ));
-    }
-    Ok(url)
+    Ok(state.settings()?.sharing.effective_url())
 }
 
 #[tauri::command]
 async fn fetch_share_manifest(state: State<'_, AppState>, code: String) -> CmdResult<InstanceManifest> {
+    // Los códigos `OBS1-…` llevan todo dentro: no necesitan servidor propio.
+    if share_code::is_pack_code(&code) {
+        return Ok(share_code::resolve(&state.auth_http, &code).await?);
+    }
     let base = manifest_base_url(&state)?;
     Ok(share::fetch_manifest(&state.auth_http, &base, &code).await?)
 }
@@ -1143,6 +1138,122 @@ async fn import_from_code(
         let _ = app2.emit("import-state", event);
     });
     Ok(())
+}
+
+/// Genera un código `OBS1-…` autocontenido con los datos de la instancia
+/// (nombre, versión, loader, memoria, imagen y archivos de Modrinth).
+#[tauri::command]
+async fn export_share_code(
+    state: State<'_, AppState>,
+    instance_id: String,
+    description: Option<String>,
+    background_url: Option<String>,
+) -> CmdResult<ExportedCode> {
+    let id = InstanceId::parse(&instance_id)?;
+    let view = state.instances.get(&id)?;
+    let dir = state.paths.instance_dir(&id);
+    let inst = &view.instance;
+    Ok(share_code::export(
+        &state.auth_http,
+        ExportInput {
+            name: &inst.name,
+            description: description.as_deref(),
+            minecraft_version: &inst.minecraft_version,
+            loader: inst.loader,
+            loader_version: inst.loader_version.as_deref(),
+            memory: inst.memory,
+            background_url: background_url.as_deref(),
+            mods_dir: &dir.join("mods"),
+            resourcepacks_dir: &dir.join("resourcepacks"),
+            shaderpacks_dir: &dir.join("shaderpacks"),
+        },
+    )
+    .await?)
+}
+
+#[derive(Clone, Serialize)]
+struct ShareProgressEvent {
+    instance_id: String,
+    phase: String,
+    done: u64,
+    total: u64,
+}
+
+/// Sube la instancia al servidor para compartir y devuelve un código corto.
+/// Lo que está en Modrinth no se sube; mods privados, imagen y configs sí.
+/// El progreso llega por el evento `share-progress`.
+#[tauri::command]
+async fn upload_share_pack(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    instance_id: String,
+    description: Option<String>,
+    include_config: bool,
+) -> CmdResult<UploadedPack> {
+    let id = InstanceId::parse(&instance_id)?;
+    let view = state.instances.get(&id)?;
+    // El guard de ajustes no puede cruzar un `await`.
+    let (base, client_id) = {
+        let settings = state.settings()?;
+        (
+            settings.sharing.effective_url(),
+            settings.account.microsoft_client_id.clone().unwrap_or_default(),
+        )
+    };
+
+    // Hace falta una cuenta de Microsoft real: el servidor la verifica con Mojang.
+    let identity = match state.auth_store.cached_account() {
+        Some(account) if account.kind != AccountKind::Offline => {
+            let ep = AuthEndpoints::live();
+            match auth::resume(&state.auth_http, &ep, &client_id, &state.auth_store).await? {
+                Some(signed_in) => Identity {
+                    username: signed_in.account.username.clone(),
+                    uuid: signed_in.account.uuid.clone(),
+                    access_token: signed_in.session.access_token.clone(),
+                },
+                None => {
+                    return Err(CommandError::new(
+                        "tu sesión de Microsoft no está disponible en este PC; inicia sesión de nuevo.",
+                    ))
+                }
+            }
+        }
+        _ => {
+            return Err(CommandError::new(
+                "para subir un pack necesitas iniciar sesión con una cuenta de Microsoft (las cuentas locales no sirven).",
+            ))
+        }
+    };
+
+    let dir = state.paths.instance_dir(&id);
+    let inst = &view.instance;
+    let progress = |phase: &str, done: u64, total: u64| {
+        let _ = app.emit(
+            "share-progress",
+            ShareProgressEvent {
+                instance_id: instance_id.clone(),
+                phase: phase.to_owned(),
+                done,
+                total,
+            },
+        );
+    };
+    Ok(share_upload::upload(
+        &base,
+        &identity,
+        UploadInput {
+            name: &inst.name,
+            description: description.as_deref(),
+            minecraft_version: &inst.minecraft_version,
+            loader: inst.loader,
+            loader_version: inst.loader_version.as_deref(),
+            memory: inst.memory,
+            instance_dir: &dir,
+            include_config,
+        },
+        &progress,
+    )
+    .await?)
 }
 
 /// Escribe una plantilla de manifiesto (sin URLs, a rellenar a mano) dentro de
@@ -1958,6 +2069,8 @@ pub fn run() {
             fetch_share_manifest,
             import_from_code,
             export_manifest_template,
+            export_share_code,
+            upload_share_pack,
             play_instance,
             stop_instance,
             game_states,

@@ -17,6 +17,8 @@ pub mod mods;
 pub mod news;
 pub mod paths;
 pub mod share;
+pub mod share_code;
+pub mod share_upload;
 pub mod updater;
 
 pub use error::{CoreError, Result};

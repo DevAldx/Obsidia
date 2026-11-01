@@ -153,6 +153,17 @@ También puedes elegir un Java concreto en los ajustes de la instancia.
 
 ## Instancias compartibles
 
+El botón **Compartir** de cada instancia genera uno de dos tipos de código:
+
+- **Código corto `OBS-XXXXXX`** (con servidor): sube a tu servidor los mods
+  que no están en Modrinth, la imagen y la carpeta `config`, y publica el
+  manifiesto. El servidor está en [`server/`](server/README.md) (Cloudflare
+  Worker + R2).
+- **Código largo `OBS1-…`** (sin servidor): lleva dentro nombre, versión,
+  loader, RAM, URL de la imagen y los archivos de Modrinth.
+
+También puedes alojar los manifiestos tú mismo:
+
 Un código `OBS-XXXXXX` se busca en `<URL configurada>/OBS-XXXXXX.json`. Sirve
 cualquier sitio que publique archivos estáticos por HTTPS (GitHub raw, S3, tu
 servidor). Solo se permiten los hosts que el manifiesto declara y cada archivo

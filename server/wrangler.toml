@@ -1,0 +1,25 @@
+name = "obsidia-share"
+main = "src/index.js"
+compatibility_date = "2025-10-01"
+
+# ── Almacenamiento ──────────────────────────────────────────────────────────
+# Opción A (por defecto, sin tarjeta): Workers KV. 1 GB, archivos de hasta 25 MB.
+# Crea el namespace con `npx wrangler kv namespace create FILES` y pega su id aquí.
+[[kv_namespaces]]
+binding = "FILES"
+id = "75ce242dd6c64c459eefa9cf7bfe49e8"
+
+# Opción B (pide tarjeta aunque sea gratis): R2. 10 GB, archivos de hasta 50 MB.
+# Si la activas, R2 tiene prioridad sobre KV.
+# [[r2_buckets]]
+# binding = "BUCKET"
+# bucket_name = "obsidia-share"
+
+[vars]
+# Tamaño máximo de un archivo subido (MB). Con KV nunca pasa de 25.
+MAX_FILE_MB = "25"
+# Lo que puede subir cada cuenta de Minecraft al día (MB) y cuántos packs.
+DAILY_UPLOAD_MB = "500"
+DAILY_PACKS = "30"
+
+# El secreto de firma NO va aquí: `npx wrangler secret put SECRET`

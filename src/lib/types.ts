@@ -196,6 +196,31 @@ export interface InstanceManifest {
   config_files: ManifestFile[];
 }
 
+/** Resultado de generar un código `OBS1-…` autocontenido. */
+export interface ExportedCode {
+  code: string;
+  /** Archivos encontrados en Modrinth que viajan en el código. */
+  included: number;
+  /** Archivos que no están en Modrinth y no se incluyen. */
+  missing: string[];
+}
+
+/** Resultado de subir una instancia al servidor para compartir. */
+export interface UploadedPack {
+  code: string;
+  from_modrinth: number;
+  hosted: number;
+  uploaded_bytes: number;
+  has_background: boolean;
+}
+
+export interface ShareProgressEvent {
+  instance_id: string;
+  phase: string;
+  done: number;
+  total: number;
+}
+
 export type ImportState = "success" | "error";
 
 export interface ImportStateEvent {

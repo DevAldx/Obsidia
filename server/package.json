@@ -1,0 +1,9 @@
+{
+  "name": "obsidia-share",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/ && STORAGE=kv node --test test/",
+    "deploy": "wrangler deploy"
+  }
+}

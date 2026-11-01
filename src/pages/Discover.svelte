@@ -63,18 +63,13 @@
       <span class="import-icon"><Icon name="download" size={20} /></span>
       <div>
         <strong class="display">¿Tienes un código?</strong>
-        <p class="hint">Instala una instancia compartida con sus mods, configs y fondo.</p>
+        <p class="hint">Pega un código y se instala la instancia con sus mods, RAM e imagen.</p>
       </div>
     </div>
     <form class="import-form" onsubmit={(e) => { e.preventDefault(); startImport(); }}>
-      <input class="input mono" bind:value={code} placeholder="OBS-K7P2X9" aria-label="Código de instancia" />
+      <input class="input mono" bind:value={code} placeholder="OBS1-… o OBS-K7P2X9" aria-label="Código de instancia" />
       <button class="btn primary" type="submit">Buscar</button>
     </form>
-    {#if !app.settings?.sharing.manifest_base_url}
-      <button class="config-link" onclick={() => nav.openSettings("sharing")}>
-        <Icon name="info" size={13} /> Configura un servicio de manifiestos para usar códigos
-      </button>
-    {/if}
   </section>
 
   <!-- Inicio rápido: tres fichas de tamaños distintos -->
@@ -261,27 +256,9 @@
   .import-form input {
     flex: 1;
     height: 40px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
   }
   .import-form .btn {
     height: 40px;
-  }
-  .config-link {
-    grid-column: 1 / -1;
-    justify-self: start;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0;
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .config-link:hover {
-    color: var(--text);
   }
 
   /* Inicio rápido */

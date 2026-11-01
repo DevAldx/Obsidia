@@ -127,12 +127,28 @@ pub struct Settings {
     pub sharing: SharingSettings,
 }
 
-/// Sin `manifest_base_url`, "Importar por código" no tiene dónde buscar: no
-/// existe (todavía) un servicio de manifiestos propio. Ver `obsidia_core::share`.
+/// Servidor oficial para compartir instancias (`server/` en el repositorio).
+/// Sirve los manifiestos `OBS-XXXXXX.json` y aloja los archivos subidos.
+pub const DEFAULT_SHARE_URL: &str = "https://obsidia-share.obsidia-share.workers.dev";
+
+/// `manifest_base_url` es un servidor propio opcional; vacío o `None` usa
+/// [`DEFAULT_SHARE_URL`]. Ver `obsidia_core::share` y `share_upload`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SharingSettings {
     pub manifest_base_url: Option<String>,
+}
+
+impl SharingSettings {
+    /// URL que se usa de verdad: la personalizada o la oficial.
+    pub fn effective_url(&self) -> String {
+        self.manifest_base_url
+            .as_deref()
+            .map(str::trim)
+            .filter(|u| !u.is_empty())
+            .unwrap_or(DEFAULT_SHARE_URL)
+            .to_owned()
+    }
 }
 
 /// Ajustes de la cuenta de Microsoft. El Client ID lo registra el propio usuario
@@ -251,6 +267,16 @@ impl Settings {
 mod tests {
     use super::*;
     use crate::instances::test_util::TempDir;
+
+    #[test]
+    fn sharing_url_falls_back_to_the_official_server() {
+        let mut s = SharingSettings::default();
+        assert_eq!(s.effective_url(), DEFAULT_SHARE_URL);
+        s.manifest_base_url = Some("   ".into());
+        assert_eq!(s.effective_url(), DEFAULT_SHARE_URL);
+        s.manifest_base_url = Some(" https://mio.example ".into());
+        assert_eq!(s.effective_url(), "https://mio.example");
+    }
 
     #[test]
     fn missing_file_gives_defaults() {

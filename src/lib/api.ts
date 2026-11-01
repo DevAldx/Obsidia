@@ -7,6 +7,8 @@ import type {
   ModEntry,
   UpdateCheck,
   BackgroundView,
+  ExportedCode,
+  UploadedPack,
   InstanceManifest,
   NewInstance,
   Settings,
@@ -76,6 +78,10 @@ export const api = {
   importFromCode: (manifest: InstanceManifest) =>
     call<void>("import_from_code", { code: manifest.code, manifest }),
   exportManifestTemplate: (instanceId: string) => call<string>("export_manifest_template", { instanceId }),
+  exportShareCode: (instanceId: string, description: string | null, backgroundUrl: string | null) =>
+    call<ExportedCode>("export_share_code", { instanceId, description, backgroundUrl }),
+  uploadSharePack: (instanceId: string, description: string | null, includeConfig: boolean) =>
+    call<UploadedPack>("upload_share_pack", { instanceId, description, includeConfig }),
   listMods: (instanceId: string) => call<ModEntry[]>("list_mods", { instanceId }),
   setModEnabled: (instanceId: string, fileName: string, enabled: boolean) =>
     call<string>("set_mod_enabled", { instanceId, fileName, enabled }),
@@ -113,3 +119,6 @@ export type ObsidiaUpdateStatus = {
   available: boolean;
   update: ObsidiaUpdateInfo | null;
 };
+
+/** Servidor oficial para compartir. Debe coincidir con `DEFAULT_SHARE_URL` de `obsidia-core`. */
+export const DEFAULT_SHARE_URL = "https://obsidia-share.obsidia-share.workers.dev";
