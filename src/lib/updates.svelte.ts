@@ -1,4 +1,4 @@
-import { api, type NebulaUpdateStatus } from "./api";
+import { api, type ObsidiaUpdateStatus } from "./api";
 
 /**
  * Estado compartido del actualizador. Lo usan el diálogo (que se abre solo al
@@ -10,7 +10,7 @@ class UpdatesState {
   checking = $state(false);
   installing = $state(false);
   error = $state("");
-  status = $state<NebulaUpdateStatus | null>(null);
+  status = $state<ObsidiaUpdateStatus | null>(null);
   /** Bytes descargados de la actualización en curso y tamaño total si se conoce. */
   downloaded = $state(0);
   total = $state<number | null>(null);
@@ -24,7 +24,7 @@ class UpdatesState {
    * Consulta el feed del updater. Si hay versión nueva abre el diálogo, tanto
    * en el arranque como al pulsar el botón manual.
    */
-  async check(): Promise<NebulaUpdateStatus | null> {
+  async check(): Promise<ObsidiaUpdateStatus | null> {
     if (this.checking) return this.status;
     this.checking = true;
     this.error = "";

@@ -1,4 +1,4 @@
-//! Lógica real del instalador: busca el AppImage de Obsidia (antes Nebula Launcher) junto a sí
+//! Lógica real del instalador: busca el AppImage de Obsidia junto a sí
 //! mismo (o recibe uno elegido a mano), lo copia a una ubicación estable,
 //! lo marca ejecutable y crea un acceso en el menú de aplicaciones.
 //!
@@ -180,8 +180,8 @@ const DESKTOP_NAME: &str = "obsidia.desktop";
 
 /// Retira la instalación antigua de «Nebula Launcher» hecha por este mismo
 /// instalador: solo el binario, su icono y su entrada de menú, para que no
-/// aparezcan dos launchers. Los datos del juego (`~/.local/share/nebula`) no
-/// se tocan: Obsidia los sigue usando.
+/// aparezcan dos launchers. Los datos del juego no se tocan aquí: Obsidia
+/// los migra a su carpeta nueva la primera vez que arranca.
 fn remove_legacy_install(home: &Path) {
     let _ = fs::remove_file(home.join(".local/share/applications/nebula-launcher.desktop"));
     let old_dir = home.join(".local/share/nebula-launcher");
@@ -564,10 +564,10 @@ mod tests {
     }
 
     /// Prueba manual contra un AppImage real ya firmado:
-    /// `NEBULA_TEST_APPIMAGE=/ruta/Nebula-Launcher.AppImage cargo test`.
+    /// `OBSIDIA_TEST_APPIMAGE=/ruta/Obsidia.AppImage cargo test`.
     #[test]
     fn verifies_a_real_signed_appimage_when_requested() {
-        let Some(path) = std::env::var_os("NEBULA_TEST_APPIMAGE") else {
+        let Some(path) = std::env::var_os("OBSIDIA_TEST_APPIMAGE") else {
             return;
         };
         let path = PathBuf::from(path);

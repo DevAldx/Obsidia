@@ -1,8 +1,5 @@
 # Obsidia
 
-> Antes **Nebula Launcher**. Desde la 0.4.0 el proyecto se llama Obsidia; ver
-> [Cambio de nombre](#cambio-de-nombre).
-
 Launcher de Minecraft ligero para Linux y Windows. Rust + Tauri 2 + Svelte 5 +
 TypeScript. No incluye Minecraft: descarga los archivos oficiales desde Mojang
 con tu propia cuenta.
@@ -53,7 +50,7 @@ con tu propia cuenta.
 
 ```bash
 npm install
-cargo test -p nebula-core      # tests del núcleo
+cargo test -p obsidia-core      # tests del núcleo
 npm run check                  # svelte-check + TypeScript
 npm run tauri dev              # ejecutar la app
 ./scripts/build-appimage.sh    # AppImage Linux firmado
@@ -63,7 +60,7 @@ npm run tauri build -- --bundles nsis  # instalador Windows
 Estructura principal:
 
 ```
-crates/nebula-core/  Lógica pura sin Tauri (config, instancias, descargas,
+crates/obsidia-core/  Lógica pura sin Tauri (config, instancias, descargas,
                      Minecraft, Java, auth, mods, share, updater)
 installer/           Instalador del AppImage para Linux
 scripts/             bump-version.sh, build-appimage.sh, build-windows.ps1
@@ -74,8 +71,7 @@ src/                 Frontend Svelte
 ## Ejecutar el AppImage
 
 Descarga `Obsidia_0.4.0_amd64.AppImage` desde
-<https://github.com/DevAldx/nebula-launcher/releases> (las versiones anteriores a
-la 0.4.0 se llaman `Nebula.Launcher_*`):
+<https://github.com/DevAldx/Obsidia/releases>:
 
 ```bash
 chmod +x "Obsidia_0.4.0_amd64.AppImage"
@@ -88,13 +84,13 @@ verifica la firma minisign antes de copiar nada.
 
 El AppImage usa WebKitGTK 4.1 y GTK 3 del sistema si están disponibles; si no,
 usa la copia empaquetada. Para forzarla:
-`NEBULA_BUNDLED_WEBKIT=1 ./"Obsidia_0.4.0_amd64.AppImage"`.
+`OBSIDIA_BUNDLED_WEBKIT=1 ./"Obsidia_0.4.0_amd64.AppImage"`.
 
 ## Compilar y publicar
 
 ```bash
 npm install
-export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/nebula-launcher.key)"
+export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/obsidia.key)"
 ./scripts/build-appimage.sh
 
 cd installer && npm install
@@ -114,7 +110,7 @@ release. Los detalles están en `INSTRUCCIONES_ACTUALIZACION.txt` y
 ## Actualizaciones y versiones
 
 Obsidia usa `tauri-plugin-updater` con firmas minisign. Al arrancar consulta
-`https://github.com/DevAldx/nebula-launcher/releases/latest/download/latest.json`;
+`https://github.com/DevAldx/Obsidia/releases/latest/download/latest.json`;
 si hay una versión nueva, muestra las novedades, descarga el artefacto, verifica
 la firma e instala. También se puede comprobar a mano en **Ajustes →
 Actualizaciones**.
@@ -157,14 +153,14 @@ También puedes elegir un Java concreto en los ajustes de la instancia.
 
 ## Instancias compartibles
 
-Un código `NBL-XXXXXX` se busca en `<URL configurada>/NBL-XXXXXX.json`. Sirve
+Un código `OBS-XXXXXX` se busca en `<URL configurada>/OBS-XXXXXX.json`. Sirve
 cualquier sitio que publique archivos estáticos por HTTPS (GitHub raw, S3, tu
 servidor). Solo se permiten los hosts que el manifiesto declara y cada archivo
 se descarga con el mismo `Downloader` verificado que usa Mojang.
 
 ```json
 {
-  "code": "NBL-K7P2X9",
+  "code": "OBS-K7P2X9",
   "name": "SkyFactory liviano",
   "description": "Pack de supervivencia con Fabric",
   "background_url": "https://.../fondo.jpg",
@@ -180,7 +176,7 @@ se descarga con el mismo `Downloader` verificado que usa Mojang.
 }
 ```
 
-Cada instancia vive en `instances/NBL-XXXXXX/`. Al copiarla sola a otro PC,
+Cada instancia vive en `instances/OBS-XXXXXX/`. Al copiarla sola a otro PC,
 Obsidia conserva mods, configs y saves y descarga al jugar lo que falte de
 Minecraft, librerías, assets y Java. Si copias también `versions/`,
 `libraries/`, `assets/` y `java/`, evitas esa descarga.
@@ -220,27 +216,28 @@ no incluye ni distribuye Minecraft.
 El copyright, las marcas y los créditos completos están en **Ajustes → Acerca
 de**.
 
-## Cambio de nombre
+## Actualizar desde versiones anteriores (0.3.x)
 
-En la 0.4.0 el nombre visible pasa de «Nebula Launcher» a «Obsidia». Para no
-romper instalaciones existentes, estos identificadores técnicos **no cambian**:
+Hasta la 0.3.x el launcher usaba otro nombre interno. Obsidia lo migra todo solo
+la primera vez que arranca:
 
-| Identificador | Valor | Motivo |
-|---|---|---|
-| `identifier` de Tauri | `dev.nebula.launcher` | Es también el servicio del llavero donde vive el refresh token de Microsoft; cambiarlo cerraría la sesión de todos. |
-| Carpetas de datos | `~/.config/nebula`, `~/.local/share/nebula` | Cambiarlas haría «desaparecer» las instancias. |
-| Prefijo de códigos | `NBL-XXXXXX` | Los códigos ya compartidos deben seguir funcionando. |
-| Repositorio / endpoint del updater | `DevAldx/nebula-launcher` | Las versiones instaladas buscan ahí sus actualizaciones. |
-| Crate interna | `nebula-core` | Nombre interno, sin efecto para el usuario. |
+| Qué | Antes | Ahora | Cómo se migra |
+|---|---|---|---|
+| Datos e instancias | `~/.local/share/nebula` | `~/.local/share/obsidia` | Se **mueven** (`rename`, sin copiar ni borrar) si la carpeta nueva no existe. Las rutas absolutas guardadas (Java manual de cada instancia, `data_dir`) se corrigen. Si el movimiento falla, se sigue usando la carpeta antigua. |
+| Ajustes | `~/.config/nebula` | `~/.config/obsidia` | Igual que los datos. |
+| Sesión de Microsoft | llavero `dev.nebula.launcher` | llavero `dev.obsidia.launcher` | El refresh token se copia al servicio nuevo y se borra el antiguo: no hay que volver a iniciar sesión. |
+| IDs y códigos | `NBL-XXXXXX` | `OBS-XXXXXX` | Las instancias nuevas usan `OBS-`; las existentes y los códigos ya compartidos con `NBL-` siguen siendo válidos. |
+| Identificador de la app | `dev.nebula.launcher` | `dev.obsidia.launcher` | El WebView empieza con un perfil limpio (no guardaba nada importante). |
+| Repositorio | `DevAldx/nebula-launcher` | `DevAldx/Obsidia` | GitHub redirige la URL antigua, así que las versiones instaladas siguen recibiendo actualizaciones. **No crees otro repositorio con el nombre antiguo** o esa redirección se rompería. |
 
-Sí cambian el nombre de producto, el ejecutable (`obsidia`), los artefactos
-(`Obsidia_<versión>_amd64.AppImage`, `Obsidia_<versión>_x64-setup.exe`), los
-iconos y todos los textos. En **Windows**, el instalador NSIS usa el nombre de
-producto para la carpeta y la entrada de «Aplicaciones instaladas»: al
-actualizar desde Nebula 0.3.x se instala Obsidia como app nueva y la antigua
-queda instalada; se puede desinstalar a mano sin perder datos, porque los datos
-viven en `%APPDATA%\nebula`. El instalador de Linux sí retira
-la entrada de menú y el AppImage antiguos de Nebula.
+En Windows las carpetas son `%APPDATA%\obsidia\obsidia\{config,data}`. El
+instalador NSIS usa el nombre de producto para la carpeta del programa: al
+actualizar desde 0.3.x, Obsidia se instala como app nueva y la antigua sigue en
+«Aplicaciones instaladas»; se puede desinstalar sin perder datos. El instalador
+de Linux retira solo el AppImage y la entrada de menú antiguos.
+
+Si después de migrar vuelves a abrir una versión 0.3.x, no verá tus instancias
+(ya están en la carpeta nueva).
 
 ## Documentación
 

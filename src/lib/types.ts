@@ -1,4 +1,4 @@
-// Espejo de los tipos serializados por nebula-core (núcleo de Obsidia).
+// Espejo de los tipos serializados por obsidia-core (núcleo de Obsidia).
 
 export type Theme = "dark" | "black" | "purple";
 export type BackgroundFit = "cover" | "contain" | "tile";

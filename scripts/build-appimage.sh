@@ -3,7 +3,7 @@
 # por uno que prefiere WebKitGTK/GTK del sistema cuando están disponibles.
 #
 # Uso:
-#   export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/nebula-launcher.key)"
+#   export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/obsidia.key)"
 #   ./scripts/build-appimage.sh
 #
 # El AppImage final queda en:

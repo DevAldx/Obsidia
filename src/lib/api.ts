@@ -37,6 +37,7 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
 export const api = {
   appInfo: () => call<AppInfo>("app_info"),
   getStartupProgress: () => call<StartupProgress>("get_startup_progress"),
+  splashReady: () => call<void>("splash_ready"),
   getSettings: () => call<Settings>("get_settings"),
   saveSettings: (settings: Settings) => call<Settings>("save_settings", { settings }),
   listInstances: () => call<InstanceList>("list_instances"),
@@ -85,7 +86,7 @@ export const api = {
   openInstanceFolder: (instanceId: string, sub: "" | "mods" | "config") =>
     call<void>("open_instance_folder", { instanceId, sub }),
   selectInstance: (id: string | null) => call<Settings>("select_instance", { id }),
-  checkAndPrepareUpdate: () => call<NebulaUpdateStatus>("check_and_prepare_update"),
+  checkAndPrepareUpdate: () => call<ObsidiaUpdateStatus>("check_and_prepare_update"),
   installUpdate: () => call<void>("install_update"),
   fetchNews: (force = false) => call<NewsFeed>("fetch_news", { force }),
   getSkinProfile: () => call<SkinProfile>("get_skin_profile"),
@@ -102,13 +103,13 @@ export const api = {
 export const splitArgs = (s: string): string[] => s.split(/\s+/).filter(Boolean);
 export const joinArgs = (a: string[]): string => a.join(" ");
 
-export type NebulaUpdateInfo = {
+export type ObsidiaUpdateInfo = {
   version: string;
   current_version: string;
   notes?: string | null;
 };
 
-export type NebulaUpdateStatus = {
+export type ObsidiaUpdateStatus = {
   available: boolean;
-  update: NebulaUpdateInfo | null;
+  update: ObsidiaUpdateInfo | null;
 };

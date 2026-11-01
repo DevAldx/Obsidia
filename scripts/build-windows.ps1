@@ -7,7 +7,7 @@
 #   4. WebView2 Runtime (Windows 10/11 lo trae; si no, el instalador lo descarga).
 #
 # Uso (PowerShell, desde la raíz del proyecto):
-#   $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content -Raw "$HOME\.tauri\nebula-launcher.key"
+#   $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content -Raw "$HOME\.tauri\obsidia.key"
 #   .\scripts\build-windows.ps1
 #
 # El instalador queda en:

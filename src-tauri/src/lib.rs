@@ -1,4 +1,4 @@
-//! Capa fina de Tauri: cada comando valida su entrada y delega en `nebula-core`.
+//! Capa fina de Tauri: cada comando valida su entrada y delega en `obsidia-core`.
 //! El frontend nunca toca el disco ni ejecuta nada por su cuenta.
 
 use std::{
@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use nebula_core::{
+use obsidia_core::{
     auth::{self, Account, AccountKind, AccountStore, AuthEndpoints, AuthFlow},
     config::Settings,
     instances::{
@@ -23,7 +23,7 @@ use nebula_core::{
     news::{self, NewsFeed},
     share::{self, InstanceManifest},
     updater::{self, UpdateCheck},
-    CoreError, NebulaPaths,
+    CoreError, ObsidiaPaths,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use serde::{Deserialize, Serialize};
@@ -37,7 +37,7 @@ enum GameSlot {
 }
 
 struct AppState {
-    paths: NebulaPaths,
+    paths: ObsidiaPaths,
     instances: InstanceStore,
     installer: Installer,
     settings: Mutex<Settings>,
@@ -48,6 +48,8 @@ struct AppState {
     sign_in_code: Mutex<Option<SignInCodeState>>,
     /// Progreso real del arranque que muestra la ventana de bienvenida.
     startup: Mutex<StartupProgress>,
+    /// Momento en que la bienvenida terminó de pintarse y se hizo visible.
+    splash_shown_at: Mutex<Option<std::time::Instant>>,
     /// Última copia de las noticias de Mojang (también se guarda en disco).
     news: Mutex<Option<NewsFeed>>,
     news_http: reqwest::Client,
@@ -180,6 +182,46 @@ fn app_info(state: State<'_, AppState>) -> AppInfo {
         version: env!("CARGO_PKG_VERSION"),
         data_dir: state.paths.data_dir().display().to_string(),
         config_dir: state.paths.config_dir().display().to_string(),
+    }
+}
+
+/// La bienvenida nace oculta y llama a esto cuando ya pintó su contenido:
+/// así nunca se ve una ventana vacía mientras arranca el motor web.
+#[tauri::command]
+fn splash_ready(app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
+    if let Some(splash) = app.get_webview_window("splash") {
+        let _ = splash.show();
+        if let Ok(mut at) = state.splash_shown_at.lock() {
+            at.get_or_insert_with(std::time::Instant::now);
+        }
+    }
+    Ok(())
+}
+
+/// Tiempo mínimo que la bienvenida permanece visible (para que se vea la marca).
+const SPLASH_MIN_VISIBLE: Duration = Duration::from_millis(900);
+/// Si la bienvenida no llega a pintarse en este tiempo, no se la espera.
+const SPLASH_PAINT_GRACE: Duration = Duration::from_millis(1500);
+
+/// Espera a que la bienvenida haya sido visible el tiempo mínimo. Nunca
+/// bloquea más de `SPLASH_PAINT_GRACE + SPLASH_MIN_VISIBLE`.
+async fn wait_for_splash(app: &AppHandle) {
+    let started = std::time::Instant::now();
+    loop {
+        let shown = app
+            .try_state::<AppState>()
+            .and_then(|s| s.splash_shown_at.lock().ok().and_then(|g| *g));
+        match shown {
+            Some(at) => {
+                let visible = at.elapsed();
+                if visible < SPLASH_MIN_VISIBLE {
+                    tokio::time::sleep(SPLASH_MIN_VISIBLE - visible).await;
+                }
+                return;
+            }
+            None if started.elapsed() >= SPLASH_PAINT_GRACE => return,
+            None => tokio::time::sleep(Duration::from_millis(50)).await,
+        }
     }
 }
 
@@ -1428,7 +1470,7 @@ async fn prepare_and_run(app: &AppHandle, id: &InstanceId) -> Result<Option<i32>
     let outcome = launcher::run_game(
         command,
         sink,
-        Some(game_dir.join("logs").join("nebula-latest.log")),
+        Some(game_dir.join("logs").join("obsidia-latest.log")),
         kill_rx,
     )
     .await;
@@ -1502,16 +1544,16 @@ fn game_states(state: State<'_, AppState>) -> CmdResult<HashMap<String, &'static
 
 
 #[derive(Debug, Serialize, Clone)]
-struct NebulaUpdateInfo {
+struct ObsidiaUpdateInfo {
     version: String,
     current_version: String,
     notes: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
-struct NebulaUpdateStatus {
+struct ObsidiaUpdateStatus {
     available: bool,
-    update: Option<NebulaUpdateInfo>,
+    update: Option<ObsidiaUpdateInfo>,
 }
 
 /// Progreso de descarga de una actualización (para la barra del diálogo).
@@ -1522,26 +1564,26 @@ struct UpdateProgressEvent {
 }
 
 #[tauri::command]
-async fn check_and_prepare_update(app: AppHandle) -> CmdResult<NebulaUpdateStatus> {
+async fn check_and_prepare_update(app: AppHandle) -> CmdResult<ObsidiaUpdateStatus> {
     let updater = match app.updater() {
         Ok(u) => u,
         Err(_) => {
-            return Ok(NebulaUpdateStatus {
+            return Ok(ObsidiaUpdateStatus {
                 available: false,
                 update: None,
             });
         }
     };
     match updater.check().await {
-        Ok(Some(update)) => Ok(NebulaUpdateStatus {
+        Ok(Some(update)) => Ok(ObsidiaUpdateStatus {
             available: true,
-            update: Some(NebulaUpdateInfo {
+            update: Some(ObsidiaUpdateInfo {
                 version: update.version.clone(),
                 current_version: update.current_version.clone(),
                 notes: update.body.clone(),
             }),
         }),
-        Ok(None) => Ok(NebulaUpdateStatus {
+        Ok(None) => Ok(ObsidiaUpdateStatus {
             available: false,
             update: None,
         }),
@@ -1789,7 +1831,7 @@ pub fn run() {
             }
         })
         .setup(|app| {
-            let boot = NebulaPaths::from_system()?;
+            let boot = ObsidiaPaths::from_system()?;
             let settings = Settings::load(&boot.settings_file())?;
             let paths = match &settings.data_dir {
                 Some(dir) => boot.with_data_dir(dir)?,
@@ -1808,6 +1850,7 @@ pub fn run() {
                 sign_in_cancel: Mutex::new(None),
                 sign_in_code: Mutex::new(None),
                 startup: Mutex::new(StartupProgress::new()),
+                splash_shown_at: Mutex::new(None),
                 news: Mutex::new(None),
                 news_http: news_client()?,
                 mc_token: Mutex::new(None),
@@ -1868,6 +1911,7 @@ pub fn run() {
                     startup_steps(handle.clone()),
                 )
                 .await;
+                wait_for_splash(&handle).await;
                 show_main_and_close_splash(&handle);
             });
             Ok(())
@@ -1875,6 +1919,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             app_info,
             get_startup_progress,
+            splash_ready,
             get_settings,
             save_settings,
             get_account,

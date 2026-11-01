@@ -23,6 +23,12 @@
     let disposed = false;
     let unlisten: UnlistenFn | undefined;
 
+    // La ventana nace oculta para no verse vacía; se muestra con el contenido
+    // ya montado. (requestAnimationFrame no corre en ventanas ocultas.)
+    setTimeout(() => {
+      if (!disposed) void api.splashReady().catch(() => {});
+    }, 0);
+
     void (async () => {
       // Primero escuchamos y después pedimos el estado: si el arranque ya
       // avanzó, `getStartupProgress` devuelve el último paso conocido.

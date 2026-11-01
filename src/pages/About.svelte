@@ -7,7 +7,7 @@
 
   async function openRepository() {
     try {
-      await api.openHttpsUrl("https://github.com/DevAldx/nebula-launcher");
+      await api.openHttpsUrl("https://github.com/DevAldx/Obsidia");
     } catch (e) {
       toasts.error(e, "No se pudo abrir el navegador");
     }
@@ -18,7 +18,7 @@
   <Logo size={64} />
   <div class="hero-copy">
     <strong class="display product">Obsidia</strong>
-    <p class="muted">Versión {app.info?.version ?? "—"} · antes Nebula Launcher</p>
+    <p class="muted">Versión {app.info?.version ?? "—"}</p>
     <p class="hint">
       Launcher independiente y de código abierto para Minecraft: Java Edition, en Linux y Windows.
       Gestiona instancias, mods y cuentas sin depender del launcher oficial.

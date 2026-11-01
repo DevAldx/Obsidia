@@ -1,5 +1,5 @@
 [package]
-name = "nebula-installer"
+name = "obsidia-installer"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.77"
@@ -9,7 +9,7 @@ description = "Instalador de Obsidia para Linux"
 [workspace]
 
 [lib]
-name = "nebula_installer_lib"
+name = "obsidia_installer_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

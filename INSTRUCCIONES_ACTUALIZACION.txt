@@ -1,10 +1,10 @@
 ========================================
-NEBULA LAUNCHER — COMPILAR Y PUBLICAR ACTUALIZACIONES
+OBSIDIA — COMPILAR Y PUBLICAR ACTUALIZACIONES
 ========================================
 
 Última revisión: versión 0.3.1
 Carpeta del proyecto: /home/dns10011/Escritorio/laucher etc/nebula-launcher-fase7-eufonia
-Repo de releases: https://github.com/DevAldx/nebula-launcher
+Repo de releases: https://github.com/DevAldx/Obsidia
 
 ----------------------------------------
 0. QUÉ HACE EL SISTEMA
@@ -23,8 +23,8 @@ La firma evita que alguien pueda servirte una actualización falsa.
 1. CLAVES (YA ESTÁN CREADAS)
 ----------------------------------------
 
-Clave privada:  ~/.tauri/nebula-launcher.key      (SIN contraseña)
-Clave pública:  ~/.tauri/nebula-launcher.key.pub
+Clave privada:  ~/.tauri/obsidia.key      (SIN contraseña)
+Clave pública:  ~/.tauri/obsidia.key.pub
 
 Copias en el Escritorio:
   TAURI_SIGNING_PRIVATE_KEY.key    <- privada (NO compartir)
@@ -67,7 +67,7 @@ Nunca reutilices una versión ya publicada. Si un release falla, publica el
 siguiente parche. La guía completa está en VERSIONADO.md.
 
 Actualiza package.json, package-lock.json, src-tauri/tauri.conf.json,
-src-tauri/Cargo.toml y la versión del workspace (nebula-core). Cargo.lock
+src-tauri/Cargo.toml y la versión del workspace (obsidia-core). Cargo.lock
 se actualiza solo al compilar.
 
 
@@ -77,7 +77,7 @@ se actualiza solo al compilar.
 
     cd "/home/dns10011/Escritorio/laucher etc/nebula-launcher-fase7-eufonia"
     export PATH="$HOME/.cargo/bin:$PATH"
-    export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/nebula-launcher.key)"
+    export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/obsidia.key)"
     ./scripts/build-appimage.sh
 
 El script compila el AppImage, sustituye el AppRun generado por Tauri por
@@ -92,7 +92,7 @@ Resultado en src-tauri/target/release/bundle/appimage/:
 El .sig se genera solo porque bundle.createUpdaterArtifacts = true.
 Si no aparece el .sig, es que el build no vio TAURI_SIGNING_PRIVATE_KEY.
 Si el sistema no tiene WebKitGTK 4.1, el AppImage usa la copia empaquetada;
-se puede forzar con NEBULA_BUNDLED_WEBKIT=1.
+se puede forzar con OBSIDIA_BUNDLED_WEBKIT=1.
 
 El propio AppImage firmado es el artefacto que descarga el updater
 (en Linux acepta AppImage sin comprimir o .AppImage.tar.gz).
@@ -120,7 +120,7 @@ sesión y personalización. Falta la prueba en un Windows 10/11 de escritorio.
 ----------------------------------------
 
     cd "/home/dns10011/Escritorio/laucher etc/nebula-launcher-fase7-eufonia"
-    GITHUB_REPO="DevAldx/nebula-launcher" ./create_latest_json.sh
+    GITHUB_REPO="DevAldx/Obsidia" ./create_latest_json.sh
 
 Lee la versión del proyecto, busca los artefactos firmados y escribe
 latest.json con la firma y la URL de descarga.
@@ -182,7 +182,7 @@ Configuración > Actualizaciones > Buscar actualizaciones.
 
 "incorrect updater private key password"
   El build está usando una clave con contraseña. Usa la nueva:
-  export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/nebula-launcher.key)"
+  export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/obsidia.key)"
 
 "no se encontraron artefactos firmados"
   Compilaste sin la variable de entorno. Expórtala y recompila.
@@ -201,7 +201,7 @@ La app no detecta la actualización
 
     ./scripts/bump-version.sh          # o minor / major / set X.Y.Z
     export PATH="$HOME/.cargo/bin:$PATH"
-    export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/nebula-launcher.key)"
+    export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/obsidia.key)"
     ./scripts/build-appimage.sh
-    GITHUB_REPO="DevAldx/nebula-launcher" ./create_latest_json.sh
+    GITHUB_REPO="DevAldx/Obsidia" ./create_latest_json.sh
     # Subir artefactos + latest.json al release vX.Y.Z y publicar
