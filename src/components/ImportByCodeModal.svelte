@@ -1,14 +1,27 @@
 <script lang="ts">
+  import { onMount, untrack } from "svelte";
   import { app } from "../lib/app.svelte";
   import { api } from "../lib/api";
+  import { nav } from "../lib/nav.svelte";
   import type { InstanceManifest } from "../lib/types";
+  import Modal from "./Modal.svelte";
+  import Icon from "./Icon.svelte";
 
-  let { onclose }: { onclose: () => void } = $props();
+  let { onclose, initialCode = "" }: { onclose: () => void; initialCode?: string } = $props();
 
-  let code = $state("");
+  let code = $state(untrack(() => initialCode));
   let manifest = $state<InstanceManifest | null>(null);
   let looking = $state(false);
   let lookupError = $state("");
+
+  const noService = $derived(!app.settings?.sharing.manifest_base_url);
+
+  onMount(() => {
+    // Un resultado de una importación anterior no debe aparecer al reabrir.
+    app.importedId = null;
+    app.importError = null;
+    if (code.trim()) void lookup();
+  });
 
   async function lookup() {
     lookupError = "";
@@ -38,81 +51,138 @@
       ? manifest.mods.length + manifest.resourcepacks.length + manifest.shaderpacks.length + manifest.config_files.length
       : 0,
   );
-  const javaOk = $derived(
-    !manifest?.java || app.java.some((j) => j.major >= manifest!.java!.min_major),
-  );
+  const javaOk = $derived(!manifest?.java || app.java.some((j) => j.major >= manifest!.java!.min_major));
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="backdrop" onclick={onclose}>
-  <div class="card modal" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()}>
-    <h1>Importar por código</h1>
-    <br />
-
-    {#if app.importedId}
-      <p class="done">¡Instancia instalada!</p>
+<Modal title="Importar por código" subtitle="Instala una instancia compartida a partir de su manifiesto." width={460} busy={app.importBusy} {onclose}>
+  {#if app.importedId}
+    <div class="done">
+      <span class="done-icon facet"><Icon name="check" size={22} strokeWidth={2.4} /></span>
+      <strong class="display">¡Instancia instalada!</strong>
       <p class="muted">Ya la tienes disponible en Instancias.</p>
-      <br />
-      <div class="actions"><span class="spacer"></span><button class="btn primary" onclick={onclose}>Cerrar</button></div>
-    {:else}
-      <label class="field">
-        <span>Código</span>
-        <div class="row">
-          <input bind:value={code} placeholder="NBL-K7P2X9" class="mono" onkeydown={(e) => e.key === "Enter" && lookup()} />
-          <button class="btn" onclick={lookup} disabled={looking || !code.trim()}>
-            {looking ? "Buscando…" : "Buscar"}
-          </button>
-        </div>
-      </label>
-      {#if lookupError}<p class="error">{lookupError}</p>{/if}
-
-      {#if manifest}
-        <br />
-        <div class="preview">
-          <strong>{manifest.name}</strong>
-          {#if manifest.description}<p class="muted">{manifest.description}</p>{/if}
-          <p class="muted">
-            Minecraft {manifest.minecraft_version} ·
-            {manifest.loader === "fabric" ? `Fabric ${manifest.loader_version ?? ""}`.trim() : "Vanilla"}
-            · {fileCount} archivos
-          </p>
-          {#if manifest.java && !javaOk}
-            <p class="hint">Requiere Java {manifest.java.min_major}+; se instalará automáticamente al importar.</p>
-          {/if}
-          {#if manifest.background_url}
-            <p class="hint">También se descargará el fondo de la instancia.</p>
-          {/if}
-        </div>
-        <br />
-        {#if app.importBusy}
-          <div class="bar"><div class="fill" style:width={pct === null ? "35%" : `${pct}%`} class:indeterminate={pct === null}></div></div>
-          <p class="hint">{progress?.phase ?? "Preparando…"}{pct !== null ? ` · ${pct}%` : ""}</p>
-        {:else}
-          <button class="btn primary" onclick={install}>Instalar</button>
-        {/if}
-        {#if app.importError}<p class="error">{app.importError}</p>{/if}
-      {/if}
-
-      <br />
-      <div class="actions">
-        <span class="spacer"></span>
-        <button class="btn" onclick={onclose} disabled={app.importBusy}>Cancelar</button>
+    </div>
+  {:else}
+    {#if noService}
+      <div class="alert warn">
+        <Icon name="info" size={16} />
+        <span>
+          No hay un servicio de manifiestos configurado, así que no hay dónde buscar el código.
+          <button class="inline-link" onclick={() => { onclose(); nav.openSettings("sharing"); }}>Configurarlo en Ajustes</button>
+        </span>
       </div>
     {/if}
-  </div>
-</div>
+    <div class="code-row">
+      <input
+        class="input mono"
+        bind:value={code}
+        placeholder="NBL-K7P2X9"
+        aria-label="Código"
+        onkeydown={(e) => e.key === "Enter" && lookup()}
+      />
+      <button class="btn" onclick={lookup} disabled={looking || !code.trim()}>
+        {looking ? "Buscando…" : "Buscar"}
+      </button>
+    </div>
+    {#if lookupError}<div class="alert"><Icon name="alert" size={16} /><span>{lookupError}</span></div>{/if}
+
+    {#if manifest}
+      <div class="preview">
+        <strong class="display">{manifest.name}</strong>
+        {#if manifest.description}<p class="muted">{manifest.description}</p>{/if}
+        <div class="tags">
+          <span class="tag">Minecraft {manifest.minecraft_version}</span>
+          <span class="tag">{manifest.loader === "fabric" ? `Fabric ${manifest.loader_version ?? ""}`.trim() : "Vanilla"}</span>
+          <span class="tag">{fileCount} archivos</span>
+        </div>
+        {#if manifest.java && !javaOk}
+          <p class="hint">Requiere Java {manifest.java.min_major}+; se instalará automáticamente al importar.</p>
+        {/if}
+        {#if manifest.background_url}<p class="hint">También se descargará el fondo de la instancia.</p>{/if}
+      </div>
+      {#if app.importBusy}
+        <div class="progress"><div class:indeterminate={pct === null} style:width={pct === null ? undefined : `${pct}%`}></div></div>
+        <p class="hint">{progress?.phase ?? "Preparando…"}{pct !== null ? ` · ${pct}%` : ""}</p>
+      {/if}
+      {#if app.importError}<div class="alert"><Icon name="alert" size={16} /><span>{app.importError}</span></div>{/if}
+    {/if}
+  {/if}
+
+  {#snippet footer()}
+    {#if app.importedId}
+      <button class="btn primary" onclick={onclose}>Listo</button>
+    {:else}
+      <button class="btn ghost" onclick={onclose} disabled={app.importBusy}>Cancelar</button>
+      <button class="btn primary" onclick={install} disabled={!manifest || app.importBusy}>
+        {app.importBusy ? "Instalando…" : "Instalar"}
+      </button>
+    {/if}
+  {/snippet}
+</Modal>
 
 <style>
-  .backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 0.55); display: grid; place-items: center; }
-  .modal { width: 440px; max-width: 92vw; background: rgb(var(--surface) / 1); }
-  .row { display: flex; gap: 8px; }
-  .row input { flex: 1; }
-  .preview { background: rgb(0 0 0 / 0.25); border: 1px solid var(--border); border-radius: 9px; padding: 12px 14px; }
-  .actions { display: flex; }
-  .spacer { flex: 1; }
-  .done { color: var(--accent); font-weight: 650; font-size: 18px; }
-  .bar { height: 8px; border-radius: 6px; background: rgb(255 255 255 / 0.08); overflow: hidden; }
-  .fill { height: 100%; background: var(--accent); border-radius: 6px; transition: width var(--ease); }
-  .fill.indeterminate { animation: slide 1.1s ease-in-out infinite alternate; }
-  @keyframes slide { from { margin-left: 0; } to { margin-left: 65%; } }
+  .code-row {
+    display: flex;
+    gap: 8px;
+  }
+  .code-row input {
+    flex: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .alert {
+    margin: 10px 0;
+  }
+  .alert:first-child {
+    margin-top: 0;
+  }
+  .inline-link {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--accent-hover);
+    font-weight: 600;
+    text-decoration: underline;
+  }
+  .preview {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: var(--radius);
+    background: rgb(0 0 0 / 0.25);
+    border: 1px solid var(--border);
+  }
+  .preview strong {
+    font-size: 17px;
+  }
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .progress {
+    margin-top: 14px;
+  }
+  .done {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 18px 0 6px;
+    text-align: center;
+  }
+  .done-icon {
+    width: 48px;
+    height: 48px;
+    display: grid;
+    place-items: center;
+    background: var(--accent);
+    color: var(--accent-ink);
+    margin-bottom: 6px;
+  }
+  .done strong {
+    font-size: 18px;
+  }
 </style>

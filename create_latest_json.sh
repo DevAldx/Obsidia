@@ -22,7 +22,7 @@ PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 # Linux deja los artefactos en target/release/bundle y Windows en
 # target/<triple>/release/bundle; se buscan ambos y solo la versión actual.
 BUNDLE="$BASE_DIR/src-tauri/target"
-NOTES="${NOTES:-Actualización de Nebula Launcher}"
+NOTES="${NOTES:-Actualización de Obsidia}"
 TAG_PREFIX="${TAG_PREFIX:-v}"
 
 if [ -z "${GITHUB_REPO:-}" ]; then

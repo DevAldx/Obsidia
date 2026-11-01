@@ -161,7 +161,7 @@ pub fn build_command(input: &LaunchInput<'_>) -> Result<LaunchCommand> {
         ("resolution_width", input.screen.width.to_string()),
         ("resolution_height", input.screen.height.to_string()),
         ("natives_directory", path_str(&p.natives_dir)),
-        ("launcher_name", "Nebula".into()),
+        ("launcher_name", "Obsidia".into()),
         ("launcher_version", env!("CARGO_PKG_VERSION").into()),
         ("classpath", classpath.join(CLASSPATH_SEPARATOR)),
         ("classpath_separator", CLASSPATH_SEPARATOR.into()),

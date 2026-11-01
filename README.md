@@ -1,4 +1,7 @@
-# Nebula Launcher
+# Obsidia
+
+> Antes **Nebula Launcher**. Desde la 0.4.0 el proyecto se llama Obsidia; ver
+> [Cambio de nombre](#cambio-de-nombre).
 
 Launcher de Minecraft ligero para Linux y Windows. Rust + Tauri 2 + Svelte 5 +
 TypeScript. No incluye Minecraft: descarga los archivos oficiales desde Mojang
@@ -10,7 +13,7 @@ con tu propia cuenta.
   (`MD5("OfflinePlayer:<nombre>")`) y aviso de `online-mode=false`.
 - **Cuenta Microsoft**: flujo oficial con código de dispositivo y tu propia app
   de Azure, o flujo heredado sin Azure. La contraseña siempre se escribe en una
-  página de Microsoft; Nebula solo recibe tokens.
+  página de Microsoft; Obsidia solo recibe tokens.
 - **Java automático**: si falta la versión exacta, descarga un JRE de Eclipse
   Temurin desde Adoptium, verifica su SHA-256 y lo extrae en
   `data/java/temurin-<mayor>`.
@@ -22,8 +25,15 @@ con tu propia cuenta.
   fondo remoto.
 - **Exportar**: genera la plantilla del manifiesto con los datos de la instancia
   y sus mods activos. Las URLs de descarga las pones tú.
+- **Interfaz**: barra superior propia (Inicio, Instancias, Descubrir, Ajustes),
+  escenario a pantalla completa con botón de jugar y selector de instancia,
+  biblioteca maestro-detalle con pestañas (resumen, mods, ajustes, registros) y
+  ajustes por secciones.
+- **Noticias**: noticias y notas de versión oficiales de Minecraft: Java Edition
+  (`launchercontent.mojang.com`), con caché de 30 min y copia en disco para
+  mostrarlas sin conexión.
 - **Personalización**: icono propio, tema, acento, transparencia, animaciones y
-  fondo PNG/JPG/WEBP/GIF animado.
+  fondo PNG/JPG/WEBP/GIF animado (Ajustes → Apariencia).
 - **Ventana de bienvenida**: animación con progreso real, comprobación de
   versión, detección de Java y lectura de instancias.
 - **Windows**: rutas, `java.exe`, classpath, iconos `.ico` e instalador NSIS.
@@ -41,7 +51,7 @@ con tu propia cuenta.
 
 ```bash
 npm install
-cargo test -p nebula-core      # 106 tests del núcleo
+cargo test -p nebula-core      # tests del núcleo
 npm run check                  # svelte-check + TypeScript
 npm run tauri dev              # ejecutar la app
 ./scripts/build-appimage.sh    # AppImage Linux firmado
@@ -61,12 +71,13 @@ src/                 Frontend Svelte
 
 ## Ejecutar el AppImage
 
-Descarga `Nebula.Launcher_0.3.1_amd64.AppImage` desde
-<https://github.com/DevAldx/nebula-launcher/releases/tag/v0.3.1>:
+Descarga `Obsidia_0.4.0_amd64.AppImage` desde
+<https://github.com/DevAldx/nebula-launcher/releases> (las versiones anteriores a
+la 0.4.0 se llaman `Nebula.Launcher_*`):
 
 ```bash
-chmod +x "Nebula.Launcher_0.3.1_amd64.AppImage"
-./"Nebula.Launcher_0.3.1_amd64.AppImage"
+chmod +x "Obsidia_0.4.0_amd64.AppImage"
+./"Obsidia_0.4.0_amd64.AppImage"
 ```
 
 No necesita instalación. Para una entrada en el menú, compila el instalador de
@@ -75,7 +86,7 @@ verifica la firma minisign antes de copiar nada.
 
 El AppImage usa WebKitGTK 4.1 y GTK 3 del sistema si están disponibles; si no,
 usa la copia empaquetada. Para forzarla:
-`NEBULA_BUNDLED_WEBKIT=1 ./"Nebula Launcher_0.3.1_amd64.AppImage"`.
+`NEBULA_BUNDLED_WEBKIT=1 ./"Obsidia_0.4.0_amd64.AppImage"`.
 
 ## Compilar y publicar
 
@@ -100,7 +111,7 @@ release. Los detalles están en `INSTRUCCIONES_ACTUALIZACION.txt` y
 
 ## Actualizaciones y versiones
 
-Nebula usa `tauri-plugin-updater` con firmas minisign. Al arrancar consulta
+Obsidia usa `tauri-plugin-updater` con firmas minisign. Al arrancar consulta
 `https://github.com/DevAldx/nebula-launcher/releases/latest/download/latest.json`;
 si hay una versión nueva, muestra las novedades, descarga el artefacto, verifica
 la firma e instala. También se puede comprobar a mano en **Ajustes →
@@ -132,11 +143,11 @@ Hay dos vías; en ambas la contraseña se escribe en una página real de Microso
   cambiarlo o bloquearlo. Sirve para uso personal o grupos pequeños, no como
   base de un servicio público.
 
-Sin cuenta configurada, Nebula funciona en **modo demo**.
+Sin cuenta configurada, Obsidia funciona en **modo demo**.
 
 ## Java
 
-Cada versión de Minecraft declara su Java. En modo automático Nebula busca un
+Cada versión de Minecraft declara su Java. En modo automático Obsidia busca un
 runtime instalado con la versión mayor exacta; si no existe, descarga Temurin
 desde Adoptium, verifica el SHA-256 y lo extrae en `data/java/temurin-<mayor>`.
 Para versiones anteriores a 1.13 que piden Java 8 se exige exactamente Java 8.
@@ -168,7 +179,7 @@ se descarga con el mismo `Downloader` verificado que usa Mojang.
 ```
 
 Cada instancia vive en `instances/NBL-XXXXXX/`. Al copiarla sola a otro PC,
-Nebula conserva mods, configs y saves y descarga al jugar lo que falte de
+Obsidia conserva mods, configs y saves y descarga al jugar lo que falte de
 Minecraft, librerías, assets y Java. Si copias también `versions/`,
 `libraries/`, `assets/` y `java/`, evitas esa descarga.
 
@@ -199,17 +210,39 @@ Wine no lo soporta. En Linux hay que usar el AppImage nativo.
 
 ## Aviso legal
 
-Nebula Launcher es un proyecto independiente. **No está afiliado, asociado,
+Obsidia es un proyecto independiente. **No está afiliado, asociado,
 autorizado, respaldado ni patrocinado por Mojang Studios, Microsoft Corporation
-ni sus filiales.** Minecraft es una marca registrada de Mojang Studios. Nebula
+ni sus filiales.** Minecraft es una marca registrada de Mojang Studios. Obsidia
 no incluye ni distribuye Minecraft.
 
-El copyright, las marcas y los créditos completos están en **Acerca de**. La
-barra lateral muestra «© 2026 Nebula» y «Minecraft © Mojang · No afiliado».
+El copyright, las marcas y los créditos completos están en **Ajustes → Acerca
+de**.
+
+## Cambio de nombre
+
+En la 0.4.0 el nombre visible pasa de «Nebula Launcher» a «Obsidia». Para no
+romper instalaciones existentes, estos identificadores técnicos **no cambian**:
+
+| Identificador | Valor | Motivo |
+|---|---|---|
+| `identifier` de Tauri | `dev.nebula.launcher` | Es también el servicio del llavero donde vive el refresh token de Microsoft; cambiarlo cerraría la sesión de todos. |
+| Carpetas de datos | `~/.config/nebula`, `~/.local/share/nebula` | Cambiarlas haría «desaparecer» las instancias. |
+| Prefijo de códigos | `NBL-XXXXXX` | Los códigos ya compartidos deben seguir funcionando. |
+| Repositorio / endpoint del updater | `DevAldx/nebula-launcher` | Las versiones instaladas buscan ahí sus actualizaciones. |
+| Crate interna | `nebula-core` | Nombre interno, sin efecto para el usuario. |
+
+Sí cambian el nombre de producto, el ejecutable (`obsidia`), los artefactos
+(`Obsidia_<versión>_amd64.AppImage`, `Obsidia_<versión>_x64-setup.exe`), los
+iconos y todos los textos. En **Windows**, el instalador NSIS usa el nombre de
+producto para la carpeta y la entrada de «Aplicaciones instaladas»: al
+actualizar desde Nebula 0.3.x se instala Obsidia como app nueva y la antigua
+queda instalada; se puede desinstalar a mano sin perder datos, porque los datos
+viven en `%APPDATA%\nebula`. El instalador de Linux sí retira
+la entrada de menú y el AppImage antiguos de Nebula.
 
 ## Documentación
 
 - `VERSIONADO.md`: formato y proceso de versiones.
 - `INSTRUCCIONES_ACTUALIZACION.txt`: compilar, firmar y publicar.
 - `INSTRUCCIONES_WINDOWS.txt`: instalador y pruebas en Windows.
-- `PATCH_NOTES_0.3.2.md`: cambios de la versión actual del repositorio.
+- `PATCH_NOTES_0.4.0.md`: cambios de la versión actual del repositorio.

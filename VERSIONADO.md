@@ -1,6 +1,6 @@
-# Versiones de Nebula Launcher
+# Versiones de Obsidia
 
-Nebula usa el formato **MAYOR.MENOR.PARCHE**, también conocido como SemVer:
+Obsidia usa el formato **MAYOR.MENOR.PARCHE**, también conocido como SemVer:
 
 ```
 0.3.1

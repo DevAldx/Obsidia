@@ -1,5 +1,5 @@
 #!/bin/bash
-# Incrementa la versión de Nebula Launcher en todos los sitios donde vive.
+# Incrementa la versión de Obsidia en todos los sitios donde vive.
 #
 # Formato: MAYOR.MENOR.PARCHE (SemVer)
 #

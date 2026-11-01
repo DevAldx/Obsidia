@@ -88,7 +88,7 @@
     }
   }
 
-  async function openNebula() {
+  async function openObsidia() {
     if (!result) return;
     try {
       await invoke("open_installed", { path: result.installed_path });
@@ -99,12 +99,12 @@
 </script>
 
 <main>
-  <div class="brand">NEBULA</div>
+  <div class="brand">OBSIDIA</div>
   <p class="subtitle muted">Minecraft Launcher</p>
   <br />
 
   {#if phase === "looking"}
-    <p class="muted">Buscando Nebula Launcher…</p>
+    <p class="muted">Buscando Obsidia…</p>
   {:else if phase === "found" && source}
     <p>Se encontró <span class="mono">{source.path.split("/").pop()}</span> ({formatSize(source.size_bytes)}).</p>
     <br />
@@ -112,7 +112,7 @@
     <br /><br />
     <button class="btn ghost" onclick={() => (phase = "picking")}>Elegir otro archivo…</button>
   {:else if phase === "picking"}
-    <p class="muted">No se encontró un Nebula-Launcher.AppImage firmado junto al instalador.</p>
+    <p class="muted">No se encontró un AppImage de Obsidia firmado junto al instalador.</p>
     <p class="muted small">Selecciona el AppImage y su archivo <span class="mono">.sig</span> (puedes elegir ambos a la vez).</p>
     <br />
     <input
@@ -132,7 +132,7 @@
     <p class="done">Instalación completada</p>
     <p class="muted mono small">{result.installed_path}</p>
     <br />
-    <button class="btn primary" onclick={openNebula}>Abrir Nebula</button>
+    <button class="btn primary" onclick={openObsidia}>Abrir Obsidia</button>
   {:else if phase === "error"}
     <p class="error">No se pudo instalar.</p>
     <p class="error small">{error}</p>

@@ -16,7 +16,9 @@ function windowLabel(): string {
 }
 
 const target = document.getElementById("app")!;
-const label = windowLabel();
+// En desarrollo, `?splash` muestra la bienvenida en el navegador para diseñarla.
+const label =
+  import.meta.env.DEV && new URLSearchParams(location.search).has("splash") ? "splash" : windowLabel();
 
 if (label === "splash") {
   mount(Splash, { target });

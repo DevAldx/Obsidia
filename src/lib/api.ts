@@ -15,6 +15,7 @@ import type {
   VersionSummary,
   Account,
   SignInCodeEvent,
+  NewsFeed,
 } from "./types";
 
 /** Los comandos de Rust fallan con `{ message }`; lo normalizamos a Error. */
@@ -83,6 +84,7 @@ export const api = {
   selectInstance: (id: string | null) => call<Settings>("select_instance", { id }),
   checkAndPrepareUpdate: () => call<NebulaUpdateStatus>("check_and_prepare_update"),
   installUpdate: () => call<void>("install_update"),
+  fetchNews: (force = false) => call<NewsFeed>("fetch_news", { force }),
 };
 
 /** "-Xmx2G -XX:+UseG1GC" → ["-Xmx2G", "-XX:+UseG1GC"] */

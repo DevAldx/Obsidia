@@ -242,7 +242,8 @@ if ($wv2Before.Clients.Count -gt 0) {
 }
 
 Write-Section "Descarga"
-$setupName = "Nebula.Launcher_${Version}_x64-setup.exe"
+# Desde 0.4.0 el producto se llama Obsidia y cambia el nombre del instalador.
+$setupName = if ([version]$Version -ge [version]"0.4.0") { "Obsidia_${Version}_x64-setup.exe" } else { "Nebula.Launcher_${Version}_x64-setup.exe" }
 $setupPath = Join-Path $outDir $setupName
 $url = "https://github.com/DevAldx/nebula-launcher/releases/download/v$Version/$setupName"
 Write-Report "URL: $url"
@@ -275,6 +276,9 @@ try {
 Write-Section "Archivos instalados"
 $programFilesX86 = [Environment]::GetFolderPath('ProgramFilesX86')
 $roots = @(
+    (Join-Path $env:LOCALAPPDATA "Obsidia"),
+    (Join-Path $env:LOCALAPPDATA "Programs\Obsidia"),
+    (Join-Path $env:ProgramFiles "Obsidia"),
     (Join-Path $env:LOCALAPPDATA "Nebula Launcher"),
     (Join-Path $env:LOCALAPPDATA "Programs\Nebula Launcher"),
     (Join-Path $env:ProgramFiles "Nebula Launcher"),
@@ -297,8 +301,8 @@ foreach ($root in $roots) {
 }
 
 if (-not $exe) {
-    Write-Report "No está en las rutas habituales; buscando nebula-launcher.exe en LOCALAPPDATA..."
-    $candidate = Get-ChildItem -Path $env:LOCALAPPDATA -Filter "nebula-launcher.exe" -Recurse -Depth 4 -ErrorAction SilentlyContinue |
+    Write-Report "No está en las rutas habituales; buscando obsidia.exe / nebula-launcher.exe en LOCALAPPDATA..."
+    $candidate = Get-ChildItem -Path $env:LOCALAPPDATA -Include "obsidia.exe", "nebula-launcher.exe" -Recurse -Depth 4 -ErrorAction SilentlyContinue |
         Select-Object -First 1
     if ($candidate) {
         $exe = $candidate
@@ -328,7 +332,7 @@ $shortcutRoots = @(
 )
 foreach ($shortcutRoot in $shortcutRoots) {
     if (Test-Path $shortcutRoot) {
-        $links = Get-ChildItem -Path $shortcutRoot -Filter "*Nebula*" -Recurse -ErrorAction SilentlyContinue
+        $links = Get-ChildItem -Path $shortcutRoot -Include "*Obsidia*", "*Nebula*" -Recurse -ErrorAction SilentlyContinue
         foreach ($link in $links) {
             Write-Report "Acceso directo: $($link.FullName)"
         }
@@ -390,7 +394,7 @@ if ($app -and -not $app.HasExited) {
 
 Write-Section "Procesos"
 $nebulaProcs = @()
-foreach ($processName in @("nebula-launcher", "Nebula Launcher")) {
+foreach ($processName in @("obsidia", "Obsidia", "nebula-launcher", "Nebula Launcher")) {
     $nebulaProcs += Get-Process -Name $processName -ErrorAction SilentlyContinue
 }
 if ($nebulaProcs.Count -gt 0) {

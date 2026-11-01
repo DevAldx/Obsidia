@@ -1,5 +1,6 @@
 <script lang="ts">
   import { app } from "../lib/app.svelte";
+  import Icon from "./Icon.svelte";
 
   let { id, big = false }: { id: string; big?: boolean } = $props();
 
@@ -9,79 +10,120 @@
 </script>
 
 {#if state === "running"}
-  <button class="btn danger play-btn" class:big onclick={() => app.stop(id)}>
-    <span class="play-label">DETENER</span>
+  <button class="play facet stop" class:big onclick={() => app.stop(id)}>
+    <Icon name="stop" size={big ? 18 : 14} strokeWidth={2.4} />
+    <span>Detener</span>
   </button>
 {:else if state === "preparing"}
-  <div class="prep" class:big>
-    <div class="bar"><div class="fill" style:width={pct === null ? "38%" : `${pct}%`} class:indeterminate={pct === null}></div></div>
-    <span class="hint prep-hint">{prog?.phase ?? "Preparando…"}{pct !== null ? ` · ${pct}%` : ""}</span>
+  <div class="play facet prep" class:big role="status" aria-live="polite">
+    <div class="prep-fill" class:indeterminate={pct === null} style:width={pct === null ? undefined : `${pct}%`}></div>
+    <span class="prep-text">
+      <span class="phase">{prog?.phase ?? "Preparando…"}</span>
+      {#if pct !== null}<span class="pct">{pct}%</span>{/if}
+    </span>
   </div>
 {:else}
-  <button class="btn primary play-btn" class:big onclick={() => app.play(id)}>
-    <span class="play-label">JUGAR</span>
+  <button class="play facet go" class:big onclick={() => app.play(id)}>
+    <Icon name="play" size={big ? 18 : 14} strokeWidth={2.4} />
+    <span>Jugar</span>
   </button>
 {/if}
 
 <style>
-  .play-btn {
+  .play {
+    --facet: 8px;
     position: relative;
-    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    height: 36px;
+    min-width: 112px;
+    padding: 0 18px;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
+    overflow: hidden;
+    transition: background var(--ease), transform var(--ease), filter var(--ease);
   }
-  .big {
-    padding: 16px 56px;
-    font-size: 16px;
-    letter-spacing: 0.42em;
+  .play.big {
+    --facet: 12px;
+    height: 56px;
+    min-width: 220px;
+    padding: 0 34px;
+    font-size: 17px;
+    letter-spacing: 0.2em;
   }
-  .play-label {
-    position: relative;
-    z-index: 1;
+  .go {
+    background: var(--accent);
+    color: var(--accent-ink);
   }
-  .play-btn.primary::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(circle at top, rgb(255 255 255 / 0.18), transparent 60%);
-    opacity: 0;
-    transition: opacity var(--ease);
+  .go:hover {
+    background: var(--accent-hover);
   }
-  .play-btn.primary:hover::after {
-    opacity: 1;
+  .go:active,
+  .stop:active {
+    transform: translateY(1px);
+  }
+  .go :global(svg) {
+    fill: currentColor;
+  }
+  .stop {
+    background: var(--danger);
+    color: #fff;
+  }
+  .stop:hover {
+    filter: brightness(1.1);
+  }
+  .stop :global(svg) {
+    fill: currentColor;
   }
   .prep {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-width: 240px;
+    cursor: default;
+    background: rgb(255 255 255 / 0.08);
+    color: var(--text);
+    min-width: 220px;
   }
   .prep.big {
-    min-width: 340px;
+    min-width: 300px;
   }
-  .bar {
-    height: 10px;
-    border-radius: 999px;
-    background: rgb(255 255 255 / 0.08);
+  .prep-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: color-mix(in srgb, var(--accent) 45%, transparent);
+    transition: width var(--ease-slow);
+  }
+  .prep-fill.indeterminate {
+    width: 35%;
+    animation: sweep 1.2s ease-in-out infinite alternate;
+  }
+  .prep-text {
+    position: relative;
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+  }
+  .big .prep-text {
+    font-size: 12px;
+  }
+  .phase {
+    max-width: 220px;
     overflow: hidden;
-    border: 1px solid rgb(255 255 255 / 0.12);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent) 0%, var(--accent-hover) 100%);
-    border-radius: inherit;
-    transition: width var(--ease);
+  .pct {
+    font-variant-numeric: tabular-nums;
+    color: var(--accent-hover);
   }
-  .fill.indeterminate {
-    width: 40%;
-    animation: slide 1.2s ease-in-out infinite alternate;
-  }
-  .prep-hint {
-    text-transform: uppercase;
-    letter-spacing: 0.26em;
-    font-size: 10px;
-  }
-  @keyframes slide {
-    from { margin-left: 0; }
-    to { margin-left: 60%; }
+  @keyframes sweep {
+    from { left: 0; }
+    to { left: 65%; }
   }
 </style>

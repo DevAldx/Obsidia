@@ -19,6 +19,7 @@ use nebula_core::{
     background,
     minecraft::{fabric, install::copy_assets, Installer, Reporter, VersionSummary},
     mods::{self, ModEntry},
+    news::{self, NewsFeed},
     share::{self, InstanceManifest},
     updater::{self, UpdateCheck},
     CoreError, NebulaPaths,
@@ -46,19 +47,22 @@ struct AppState {
     sign_in_code: Mutex<Option<SignInCodeState>>,
     /// Progreso real del arranque que muestra la ventana de bienvenida.
     startup: Mutex<StartupProgress>,
+    /// Última copia de las noticias de Mojang (también se guarda en disco).
+    news: Mutex<Option<NewsFeed>>,
+    news_http: reqwest::Client,
 }
 
 impl AppState {
     fn settings(&self) -> Result<MutexGuard<'_, Settings>, CommandError> {
         self.settings
             .lock()
-            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Nebula"))
+            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Obsidia"))
     }
 
     fn games(&self) -> Result<MutexGuard<'_, HashMap<String, GameSlot>>, CommandError> {
         self.games
             .lock()
-            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Nebula"))
+            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Obsidia"))
     }
 
     fn sign_in_cancel(
@@ -66,7 +70,7 @@ impl AppState {
     ) -> Result<MutexGuard<'_, Option<oneshot::Sender<()>>>, CommandError> {
         self.sign_in_cancel
             .lock()
-            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Nebula"))
+            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Obsidia"))
     }
 
     fn pending_sign_in(
@@ -74,13 +78,13 @@ impl AppState {
     ) -> Result<MutexGuard<'_, Option<SignInCodeState>>, CommandError> {
         self.sign_in_code
             .lock()
-            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Nebula"))
+            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Obsidia"))
     }
 
     fn startup(&self) -> Result<MutexGuard<'_, StartupProgress>, CommandError> {
         self.startup
             .lock()
-            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Nebula"))
+            .map_err(|_| CommandError::new("estado interno corrupto, reinicia Obsidia"))
     }
 
     fn microsoft_client_id(&self) -> Result<String, CommandError> {
@@ -150,7 +154,7 @@ impl StartupProgress {
             step: 0,
             total: 5,
             percent: 4,
-            label: "Iniciando Nebula".to_owned(),
+            label: "Iniciando Obsidia".to_owned(),
             detail: None,
             done: false,
             version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -310,7 +314,7 @@ fn open_sign_in_window(app: &AppHandle) -> tauri::Result<tauri::WebviewWindow> {
         "signin",
         tauri::WebviewUrl::App("index.html".into()),
     )
-    .title("Nebula — Iniciar sesión")
+    .title("Obsidia — Iniciar sesión")
     .inner_size(460.0, 500.0)
     .resizable(false)
     .maximizable(false)
@@ -634,6 +638,49 @@ fn open_https_url(url: String) -> CmdResult<()> {
     }
     open_target(parsed.as_str().as_ref(), false)
         .map_err(|e| CommandError::new(format!("no se pudo abrir el navegador: {e}")))
+}
+
+// ───────────────────────────── Noticias ─────────────────────────────
+
+fn news_client() -> Result<reqwest::Client, CoreError> {
+    reqwest::Client::builder()
+        .user_agent(concat!("ObsidiaLauncher/", env!("CARGO_PKG_VERSION")))
+        .https_only(true)
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| CoreError::Network(e.to_string()))
+}
+
+/// Noticias de Minecraft: Java Edition. Se descargan como mucho cada 30 min;
+/// sin red se devuelve la última copia guardada marcada como `stale`.
+#[tauri::command]
+async fn fetch_news(state: State<'_, AppState>, force: Option<bool>) -> CmdResult<NewsFeed> {
+    let cache_path = state.paths.data_dir().join("cache").join("news.json");
+    let cached = state.news.lock().ok().and_then(|g| g.clone());
+    if !force.unwrap_or(false) {
+        if let Some(feed) = cached.clone().filter(NewsFeed::is_fresh) {
+            return Ok(feed);
+        }
+    }
+    match news::fetch(&state.news_http).await {
+        Ok(feed) => {
+            if let Err(e) = news::save_cache(&cache_path, &feed) {
+                eprintln!("no se pudo guardar la caché de noticias: {e}");
+            }
+            if let Ok(mut slot) = state.news.lock() {
+                *slot = Some(feed.clone());
+            }
+            Ok(feed)
+        }
+        Err(e) => match cached.or_else(|| news::load_cache(&cache_path)) {
+            Some(mut feed) => {
+                feed.stale = true;
+                Ok(feed)
+            }
+            None => Err(CommandError::new(format!("no se pudieron cargar las noticias: {e}"))),
+        },
+    }
 }
 
 // ───────────────────────────── Instancias ─────────────────────────────
@@ -1442,7 +1489,7 @@ async fn startup_steps(app: AppHandle) {
         .map(|state| state.paths.data_dir().display().to_string());
     progress.detail = Some(match data_dir {
         Some(dir) => format!("Datos en {dir}"),
-        None => "Preparando los directorios de Nebula".to_owned(),
+        None => "Preparando los directorios de Obsidia".to_owned(),
     });
     emit_startup(&app, progress.clone());
     tokio::time::sleep(Duration::from_millis(220)).await;
@@ -1516,7 +1563,7 @@ async fn startup_steps(app: AppHandle) {
     progress.step = 5;
     progress.percent = 100;
     progress.label = "Listo".to_owned();
-    progress.detail = Some("Abriendo Nebula Launcher".to_owned());
+    progress.detail = Some("Abriendo Obsidia".to_owned());
     progress.done = true;
     emit_startup(&app, progress);
 
@@ -1611,6 +1658,8 @@ pub fn run() {
                 sign_in_cancel: Mutex::new(None),
                 sign_in_code: Mutex::new(None),
                 startup: Mutex::new(StartupProgress::new()),
+                news: Mutex::new(None),
+                news_http: news_client()?,
             });
             // `bundle.icon` empieza por `icons/icon.png` (512×512), así que este
             // es el icono de Halloween que Tauri incrusta para la ventana. Si el
@@ -1716,10 +1765,11 @@ pub fn run() {
             play_instance,
             stop_instance,
             game_states,
+            fetch_news,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|e| {
-            eprintln!("error al iniciar Nebula: {e}");
+            eprintln!("error al iniciar Obsidia: {e}");
             std::process::exit(1);
         });
 }

@@ -167,7 +167,7 @@ pub fn required_major(meta: &VersionMeta) -> u32 {
 
 fn install_hint(major: u32) -> String {
     format!(
-        "Nebula intentará descargar Java {major} automáticamente; si falla, revisa la conexión."
+        "Obsidia intentará descargar Java {major} automáticamente; si falla, revisa la conexión."
     )
 }
 

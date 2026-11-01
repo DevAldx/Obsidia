@@ -28,7 +28,7 @@
     <div class="dialog-header">
       <div>
         <h2 id="update-title">Actualización disponible</h2>
-        <p class="muted">Una nueva versión de Nebula Launcher está lista</p>
+        <p class="muted">Hay una nueva versión de Obsidia lista</p>
       </div>
       <button class="icon-btn" onclick={() => updates.close()} disabled={updates.installing} aria-label="Cerrar">✕</button>
     </div>

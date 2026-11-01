@@ -100,9 +100,9 @@
 
 <div class="signin-window">
   <header class="brand">
-    <img class="brand-mark" src={icon ?? "/nebula-icon.png"} alt="" />
+    <img class="brand-mark" src={icon ?? "/obsidia-icon.png"} alt="" />
     <div>
-      <p class="eyebrow">Nebula Launcher</p>
+      <p class="eyebrow">Obsidia</p>
       <h1>Iniciar sesión</h1>
     </div>
   </header>
@@ -143,14 +143,14 @@
   {:else}
     {#if error}<p class="error">{error}</p>{/if}
     <p class="muted">No hay un inicio de sesión en curso.</p>
-    <p class="hint">Cierra esta ventana y vuelve a intentarlo desde Nebula.</p>
+    <p class="hint">Cierra esta ventana y vuelve a intentarlo desde Obsidia.</p>
     <div class="actions">
       <button type="button" class="btn primary" onclick={closeWindow}>Cerrar</button>
     </div>
   {/if}
 
   <p class="legal">
-    Nebula Launcher no está afiliado a Mojang Studios ni Microsoft. Minecraft es una marca de
+    Obsidia no está afiliado a Mojang Studios ni Microsoft. Minecraft es una marca de
     Mojang Studios.
   </p>
 </div>

@@ -1,4 +1,4 @@
-//! Núcleo de Nebula Launcher.
+//! Núcleo de Obsidia (antes Nebula Launcher).
 //!
 //! Esta crate no depende de Tauri: toda la lógica es testeable por separado y
 //! `src-tauri` solo expone comandos IPC finos sobre estas APIs.
@@ -14,6 +14,7 @@ pub mod java;
 pub mod launcher;
 pub mod minecraft;
 pub mod mods;
+pub mod news;
 pub mod paths;
 pub mod share;
 pub mod updater;

@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="70%">
+      <stop offset="0" stop-color="#1e1530"/>
+      <stop offset="1" stop-color="#09080d"/>
+    </radialGradient>
+    <linearGradient id="top" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6b46b8"/>
+      <stop offset="1" stop-color="#3a2468"/>
+    </linearGradient>
+    <linearGradient id="left" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#25183f"/>
+      <stop offset="1" stop-color="#120c20"/>
+    </linearGradient>
+    <linearGradient id="right" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#36225c"/>
+      <stop offset="1" stop-color="#1a1130"/>
+    </linearGradient>
+    <linearGradient id="vein" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e2c6ff"/>
+      <stop offset="1" stop-color="#a66bff"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="232" fill="url(#bg)"/>
+  <!-- Cubo isométrico -->
+  <polygon points="512,196 786,354 512,512 238,354" fill="url(#top)"/>
+  <polygon points="238,354 512,512 512,828 238,670" fill="url(#left)"/>
+  <polygon points="512,512 786,354 786,670 512,828" fill="url(#right)"/>
+  <!-- Faceta tallada en la cara superior -->
+  <polygon points="512,268 660,354 512,440 364,354" fill="#8a63d6" opacity="0.55"/>
+  <polygon points="512,268 660,354 512,354" fill="#b18cf2" opacity="0.45"/>
+  <!-- Vetas de obsidiana llorona, en escalones de píxel -->
+  <path d="M300 430 L344 455 L344 505 L388 530 L388 600 L432 625" fill="none" stroke="url(#vein)" stroke-width="22" stroke-linejoin="miter" stroke-linecap="square"/>
+  <path d="M556 700 L600 675 L600 625 L644 600 L644 545 L688 520 L688 470 L736 443" fill="none" stroke="url(#vein)" stroke-width="22" stroke-linejoin="miter" stroke-linecap="square" opacity="0.85"/>
+  <rect x="712" y="580" width="24" height="24" fill="#cfa8ff" opacity="0.8"/>
+  <rect x="290" y="580" width="22" height="22" fill="#cfa8ff" opacity="0.7"/>
+  <!-- Aristas -->
+  <polyline points="238,354 512,512 786,354" fill="none" stroke="#c9a6ff" stroke-opacity="0.55" stroke-width="6"/>
+  <line x1="512" y1="512" x2="512" y2="828" stroke="#c9a6ff" stroke-opacity="0.28" stroke-width="6"/>
+  <polygon points="512,196 786,354 786,670 512,828 238,670 238,354" fill="none" stroke="#d9c2ff" stroke-opacity="0.35" stroke-width="6" stroke-linejoin="round"/>
+</svg>
