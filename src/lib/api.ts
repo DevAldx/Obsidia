@@ -86,7 +86,7 @@ export const api = {
   openInstanceFolder: (instanceId: string, sub: "" | "mods" | "config") =>
     call<void>("open_instance_folder", { instanceId, sub }),
   selectInstance: (id: string | null) => call<Settings>("select_instance", { id }),
-  checkAndPrepareUpdate: () => call<NebulaUpdateStatus>("check_and_prepare_update"),
+  checkAndPrepareUpdate: () => call<ObsidiaUpdateStatus>("check_and_prepare_update"),
   installUpdate: () => call<void>("install_update"),
   fetchNews: (force = false) => call<NewsFeed>("fetch_news", { force }),
   getSkinProfile: () => call<SkinProfile>("get_skin_profile"),
@@ -103,13 +103,13 @@ export const api = {
 export const splitArgs = (s: string): string[] => s.split(/\s+/).filter(Boolean);
 export const joinArgs = (a: string[]): string => a.join(" ");
 
-export type NebulaUpdateInfo = {
+export type ObsidiaUpdateInfo = {
   version: string;
   current_version: string;
   notes?: string | null;
 };
 
-export type NebulaUpdateStatus = {
+export type ObsidiaUpdateStatus = {
   available: boolean;
-  update: NebulaUpdateInfo | null;
+  update: ObsidiaUpdateInfo | null;
 };

@@ -1,4 +1,4 @@
-//! Capa fina de Tauri: cada comando valida su entrada y delega en `nebula-core`.
+//! Capa fina de Tauri: cada comando valida su entrada y delega en `obsidia-core`.
 //! El frontend nunca toca el disco ni ejecuta nada por su cuenta.
 
 use std::{
@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use nebula_core::{
+use obsidia_core::{
     auth::{self, Account, AccountKind, AccountStore, AuthEndpoints, AuthFlow},
     config::Settings,
     instances::{
@@ -23,7 +23,7 @@ use nebula_core::{
     news::{self, NewsFeed},
     share::{self, InstanceManifest},
     updater::{self, UpdateCheck},
-    CoreError, NebulaPaths,
+    CoreError, ObsidiaPaths,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use serde::{Deserialize, Serialize};
@@ -37,7 +37,7 @@ enum GameSlot {
 }
 
 struct AppState {
-    paths: NebulaPaths,
+    paths: ObsidiaPaths,
     instances: InstanceStore,
     installer: Installer,
     settings: Mutex<Settings>,
@@ -1470,7 +1470,7 @@ async fn prepare_and_run(app: &AppHandle, id: &InstanceId) -> Result<Option<i32>
     let outcome = launcher::run_game(
         command,
         sink,
-        Some(game_dir.join("logs").join("nebula-latest.log")),
+        Some(game_dir.join("logs").join("obsidia-latest.log")),
         kill_rx,
     )
     .await;
@@ -1544,16 +1544,16 @@ fn game_states(state: State<'_, AppState>) -> CmdResult<HashMap<String, &'static
 
 
 #[derive(Debug, Serialize, Clone)]
-struct NebulaUpdateInfo {
+struct ObsidiaUpdateInfo {
     version: String,
     current_version: String,
     notes: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
-struct NebulaUpdateStatus {
+struct ObsidiaUpdateStatus {
     available: bool,
-    update: Option<NebulaUpdateInfo>,
+    update: Option<ObsidiaUpdateInfo>,
 }
 
 /// Progreso de descarga de una actualización (para la barra del diálogo).
@@ -1564,26 +1564,26 @@ struct UpdateProgressEvent {
 }
 
 #[tauri::command]
-async fn check_and_prepare_update(app: AppHandle) -> CmdResult<NebulaUpdateStatus> {
+async fn check_and_prepare_update(app: AppHandle) -> CmdResult<ObsidiaUpdateStatus> {
     let updater = match app.updater() {
         Ok(u) => u,
         Err(_) => {
-            return Ok(NebulaUpdateStatus {
+            return Ok(ObsidiaUpdateStatus {
                 available: false,
                 update: None,
             });
         }
     };
     match updater.check().await {
-        Ok(Some(update)) => Ok(NebulaUpdateStatus {
+        Ok(Some(update)) => Ok(ObsidiaUpdateStatus {
             available: true,
-            update: Some(NebulaUpdateInfo {
+            update: Some(ObsidiaUpdateInfo {
                 version: update.version.clone(),
                 current_version: update.current_version.clone(),
                 notes: update.body.clone(),
             }),
         }),
-        Ok(None) => Ok(NebulaUpdateStatus {
+        Ok(None) => Ok(ObsidiaUpdateStatus {
             available: false,
             update: None,
         }),
@@ -1831,7 +1831,7 @@ pub fn run() {
             }
         })
         .setup(|app| {
-            let boot = NebulaPaths::from_system()?;
+            let boot = ObsidiaPaths::from_system()?;
             let settings = Settings::load(&boot.settings_file())?;
             let paths = match &settings.data_dir {
                 Some(dir) => boot.with_data_dir(dir)?,

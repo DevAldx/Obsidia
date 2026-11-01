@@ -75,7 +75,7 @@
       <input
         class="input mono"
         bind:value={code}
-        placeholder="NBL-K7P2X9"
+        placeholder="OBS-K7P2X9"
         aria-label="Código"
         onkeydown={(e) => e.key === "Enter" && lookup()}
       />

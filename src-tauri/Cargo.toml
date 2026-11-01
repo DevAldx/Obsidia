@@ -1,16 +1,16 @@
 [package]
-name = "nebula-launcher"
+name = "obsidia"
 version = "0.4.0"
 edition = "2021"
 rust-version = "1.77"
 license = "MIT"
 description = "Obsidia: launcher de Minecraft ligero"
 
-# Tauri exige su propio workspace; la lógica vive en ../crates/nebula-core.
+# Tauri exige su propio workspace; la lógica vive en ../crates/obsidia-core.
 [workspace]
 
 [lib]
-name = "nebula_launcher_lib"
+name = "obsidia_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -20,7 +20,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["image-png"] }
 tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }
-nebula-core = { path = "../crates/nebula-core" }
+obsidia-core = { path = "../crates/obsidia-core" }
 tokio = { version = "1", features = ["sync", "time"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 base64 = "0.22"

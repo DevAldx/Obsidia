@@ -1,5 +1,5 @@
 # Workspace de crates puros (sin Tauri). `src-tauri` es su propio workspace
-# (lo exige Tauri) y depende de `nebula-core` por ruta.
+# (lo exige Tauri) y depende de `obsidia-core` por ruta.
 [workspace]
 resolver = "2"
 members = ["crates/*"]

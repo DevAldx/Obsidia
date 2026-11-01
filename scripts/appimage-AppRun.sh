@@ -7,7 +7,8 @@
 # en una fracción de segundo. Si no están, se usa la copia incluida.
 #
 # Para forzar la copia empaquetada:
-#   NEBULA_BUNDLED_WEBKIT=1 ./Obsidia_*.AppImage
+#   OBSIDIA_BUNDLED_WEBKIT=1 ./Obsidia_*.AppImage
+# (NEBULA_BUNDLED_WEBKIT, el nombre antiguo, sigue funcionando.)
 set -e
 
 APPDIR="${APPDIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -25,7 +26,7 @@ find_lib() {
 }
 
 system_dirs=""
-if [ "${NEBULA_BUNDLED_WEBKIT:-0}" != "1" ]; then
+if [ "${OBSIDIA_BUNDLED_WEBKIT:-${NEBULA_BUNDLED_WEBKIT:-0}}" != "1" ]; then
   webkit_dir="$(find_lib libwebkit2gtk-4.1.so.0 || true)"
   gtk_dir="$(find_lib libgtk-3.so.0 || true)"
   if [ -n "$webkit_dir" ] && [ -n "$gtk_dir" ]; then

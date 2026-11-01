@@ -67,7 +67,7 @@
       </div>
     </div>
     <form class="import-form" onsubmit={(e) => { e.preventDefault(); startImport(); }}>
-      <input class="input mono" bind:value={code} placeholder="NBL-K7P2X9" aria-label="Código de instancia" />
+      <input class="input mono" bind:value={code} placeholder="OBS-K7P2X9" aria-label="Código de instancia" />
       <button class="btn primary" type="submit">Buscar</button>
     </form>
     {#if !app.settings?.sharing.manifest_base_url}

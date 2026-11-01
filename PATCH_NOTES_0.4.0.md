@@ -4,8 +4,9 @@ Fecha: 2026-10-31
 
 ## Cambios
 
-Nebula Launcher pasa a llamarse **Obsidia** y estrena una interfaz nueva. Las
-instancias, las cuentas, los ajustes y los códigos `NBL-` se conservan tal cual.
+El launcher pasa a llamarse **Obsidia** y estrena una interfaz nueva. Las
+instancias, la sesión de Microsoft, los ajustes y los códigos `NBL-` se
+migran solos la primera vez que arranca (ver «Migración» más abajo).
 
 ### Nueva identidad
 
@@ -64,16 +65,28 @@ instancias, las cuentas, los ajustes y los códigos `NBL-` se conservan tal cual
 
 ### Técnico
 
-- Comando nuevo `fetch_news` y módulo `nebula_core::news` con tests.
+- Comando nuevo `fetch_news` y módulo `obsidia_core::news` con tests.
 - CSP: se permiten imágenes de `launchercontent.mojang.com` y fuentes locales.
 - Ventana principal sin decoración del sistema. Nueva capacidad
   `window-controls` con los permisos mínimos para arrastrar, minimizar,
   maximizar y cerrar.
-- Ejecutable `obsidia` (`mainBinaryName`). El instalador de Linux instala en
+- Ejecutable `obsidia`. El instalador de Linux instala en
   `~/.local/share/obsidia-launcher` y retira el AppImage y la entrada de menú
-  antiguos de Nebula.
-- Se mantienen `dev.nebula.launcher`, las carpetas `nebula`, el prefijo `NBL-` y
-  el repositorio del actualizador. Los motivos están en el README.
+  de la versión anterior.
+- Crate `obsidia-core`, paquetes `obsidia` y `obsidia-installer`, repositorio
+  `DevAldx/Obsidia` y variable `OBSIDIA_BUNDLED_WEBKIT` (la antigua sigue
+  funcionando).
+
+### Migración desde 0.3.x
+
+- Las carpetas `~/.config/nebula` y `~/.local/share/nebula` se mueven a
+  `.../obsidia` al arrancar (sin copiar ni borrar) y se corrigen las rutas
+  absolutas guardadas. Si no se pueden mover, se siguen usando las antiguas.
+- El refresh token de Microsoft pasa del llavero `dev.nebula.launcher` a
+  `dev.obsidia.launcher`: no hay que volver a iniciar sesión.
+- Identificador de la app `dev.obsidia.launcher`.
+- Las instancias nuevas usan el prefijo `OBS-`; las `NBL-` existentes y los
+  códigos ya compartidos siguen siendo válidos.
 
 ### Pendiente de probar
 

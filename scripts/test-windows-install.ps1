@@ -245,7 +245,7 @@ Write-Section "Descarga"
 # Desde 0.4.0 el producto se llama Obsidia y cambia el nombre del instalador.
 $setupName = if ([version]$Version -ge [version]"0.4.0") { "Obsidia_${Version}_x64-setup.exe" } else { "Nebula.Launcher_${Version}_x64-setup.exe" }
 $setupPath = Join-Path $outDir $setupName
-$url = "https://github.com/DevAldx/nebula-launcher/releases/download/v$Version/$setupName"
+$url = "https://github.com/DevAldx/Obsidia/releases/download/v$Version/$setupName"
 Write-Report "URL: $url"
 Invoke-WebRequest -Uri $url -OutFile $setupPath -UseBasicParsing
 Unblock-File -Path $setupPath -ErrorAction SilentlyContinue
@@ -322,7 +322,7 @@ if ($exe) {
         Out-String -Width 300 |
         Set-Content -Path $filesPath -Encoding UTF8
 } else {
-    Write-Report "ERROR: no se encontró ningún ejecutable de Nebula."
+    Write-Report "ERROR: no se encontró ningún ejecutable de Obsidia."
     "No se encontraron archivos." | Set-Content -Path $filesPath -Encoding UTF8
 }
 
@@ -393,15 +393,15 @@ if ($app -and -not $app.HasExited) {
 }
 
 Write-Section "Procesos"
-$nebulaProcs = @()
+$appProcs = @()
 foreach ($processName in @("obsidia", "Obsidia", "nebula-launcher", "Nebula Launcher")) {
-    $nebulaProcs += Get-Process -Name $processName -ErrorAction SilentlyContinue
+    $appProcs += Get-Process -Name $processName -ErrorAction SilentlyContinue
 }
-if ($nebulaProcs.Count -gt 0) {
-    $nebulaProcs | Select-Object Id, ProcessName, MainWindowTitle, WorkingSet64 |
+if ($appProcs.Count -gt 0) {
+    $appProcs | Select-Object Id, ProcessName, MainWindowTitle, WorkingSet64 |
         Format-Table -AutoSize | Out-String -Width 240 | Add-Content $reportPath
 } else {
-    Write-Report "No hay procesos de Nebula."
+    Write-Report "No hay procesos de Obsidia."
 }
 $wvProcs = Get-Process -Name "msedgewebview2" -ErrorAction SilentlyContinue
 if ($wvProcs) {
@@ -664,7 +664,7 @@ const { chromium } = require('playwright-core');
 Write-Section "Registro de eventos"
 try {
     $events = Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = $installStart } -ErrorAction SilentlyContinue |
-        Where-Object { $_.Message -match 'nebula|WebView2|Application Error|Windows Error Reporting|\.NET Runtime' } |
+        Where-Object { $_.Message -match 'obsidia|nebula|WebView2|Application Error|Windows Error Reporting|\.NET Runtime' } |
         Select-Object TimeCreated, Id, LevelDisplayName, ProviderName, Message
     if ($events) {
         $events | Format-List | Out-String -Width 300 |

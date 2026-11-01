@@ -113,7 +113,7 @@ if [ -f "$PACKAGE_LOCK" ]; then
   sed -i "0,/\"version\": \"$CURRENT_RE\"/s//\"version\": \"$NEW_VERSION\"/" "$PACKAGE_LOCK"
 fi
 
-# La versión del workspace la hereda nebula-core (`version.workspace = true`).
+# La versión del workspace la hereda obsidia-core (`version.workspace = true`).
 # Se reescribe solo dentro de la sección [workspace.package].
 if [ -f "$ROOT_CARGO" ]; then
   sed -i '/^\[workspace\.package\]/,/^\[/ s/^version = ".*"/version = "'"$NEW_VERSION"'"/' "$ROOT_CARGO"

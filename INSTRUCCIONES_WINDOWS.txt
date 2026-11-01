@@ -1,12 +1,12 @@
 ========================================
-NEBULA LAUNCHER — WINDOWS
+OBSIDIA — WINDOWS
 ========================================
 
 Última revisión: versión 0.3.1
 Carpeta del proyecto (Linux):
   /home/dns10011/Escritorio/laucher etc/nebula-launcher-fase7-eufonia
 Repo de releases:
-  https://github.com/DevAldx/nebula-launcher
+  https://github.com/DevAldx/Obsidia
 
 IMPORTANTE
   La versión 0.3.1 se compila desde Linux con cargo-xwin + NSIS. La prueba se
@@ -20,7 +20,7 @@ IMPORTANTE
   ventana "Obsidia — Iniciar sesión" y Cancelar. Con UI Automation se comprobó
   el icono PNG, el fondo GIF, el tema púrpura, el acento #22c55e, el desenfoque
   de 15 px y el oscurecimiento del 60 %: se guardaron en
-  %APPDATA%\nebula\nebula\config y persistieron tras reiniciar. El aviso legal
+  %APPDATA%\obsidia\obsidia\config y persistieron tras reiniciar. El aviso legal
   también estaba visible. Aún NO se ha probado en un Windows 10/11 de
   escritorio ni el flujo completo de juego. Hasta entonces, no se puede
   afirmar que funcione en todas las máquinas.
@@ -73,7 +73,7 @@ Requisitos:
 Desde la raíz del proyecto, en PowerShell:
 
   # Cargar la clave privada solo en esta sesión (no la guardes en el repo)
-  $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content -Raw "$HOME\.tauri\nebula-launcher.key"
+  $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content -Raw "$HOME\.tauri\obsidia.key"
 
   # Si tu clave tuviera contraseña:
   # $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "tu-contraseña"
@@ -112,7 +112,7 @@ en el PATH que exporte NSISDIR y ejecute el binario real:
   exec /ruta/a/nsis/usr/bin/makensis "$@"
 
   export PATH="/ruta/al/wrapper:$HOME/.cargo/bin:$PATH"
-  export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/nebula-launcher.key)"
+  export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/obsidia.key)"
   export XWIN_CACHE_DIR="$HOME/.cache/xwin-nebula"
   npm run tauri build -- \
     --runner cargo-xwin \
@@ -165,14 +165,14 @@ El feed latest.json puede incluir Linux y Windows a la vez. El orden es:
   cd "/home/dns10011/Escritorio/laucher etc/nebula-launcher-fase7-eufonia"
   ./scripts/bump-version.sh                 # patch; o minor / major / set X.Y.Z
   export PATH="$HOME/.cargo/bin:$PATH"
-  export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/nebula-launcher.key)"
+  export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/obsidia.key)"
   ./scripts/build-appimage.sh               # AppImage Linux firmado
 
   # Copia los artefactos de Windows a una carpeta que create_latest_json.sh
   # pueda encontrar, por ejemplo:
   #   src-tauri/target/release/bundle/nsis/
   # y después:
-  GITHUB_REPO="DevAldx/nebula-launcher" ./create_latest_json.sh
+  GITHUB_REPO="DevAldx/Obsidia" ./create_latest_json.sh
 
   # Crear el release v0.3.1 y subir:
   #   Linux:   *.AppImage, *.AppImage.sig

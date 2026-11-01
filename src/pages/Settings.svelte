@@ -298,8 +298,8 @@
               <input class="mono" bind:value={draft.sharingUrl} placeholder="https://ejemplo.com/manifests" />
             </label>
             <p class="hint">
-              Un código como <span class="mono">NBL-K7P2X9</span> se busca en
-              <span class="mono">{"<esta URL>"}/NBL-K7P2X9.json</span>. Obsidia no aloja nada: necesitas tu propio
+              Un código como <span class="mono">OBS-K7P2X9</span> se busca en
+              <span class="mono">{"<esta URL>"}/OBS-K7P2X9.json</span>. Obsidia no aloja nada: necesitas tu propio
               sitio (o uno de confianza) con esos JSON. Más detalles en el README.
             </p>
           </div>
