@@ -48,6 +48,8 @@ struct AppState {
     sign_in_code: Mutex<Option<SignInCodeState>>,
     /// Progreso real del arranque que muestra la ventana de bienvenida.
     startup: Mutex<StartupProgress>,
+    /// Momento en que la bienvenida terminó de pintarse y se hizo visible.
+    splash_shown_at: Mutex<Option<std::time::Instant>>,
     /// Última copia de las noticias de Mojang (también se guarda en disco).
     news: Mutex<Option<NewsFeed>>,
     news_http: reqwest::Client,
@@ -180,6 +182,46 @@ fn app_info(state: State<'_, AppState>) -> AppInfo {
         version: env!("CARGO_PKG_VERSION"),
         data_dir: state.paths.data_dir().display().to_string(),
         config_dir: state.paths.config_dir().display().to_string(),
+    }
+}
+
+/// La bienvenida nace oculta y llama a esto cuando ya pintó su contenido:
+/// así nunca se ve una ventana vacía mientras arranca el motor web.
+#[tauri::command]
+fn splash_ready(app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
+    if let Some(splash) = app.get_webview_window("splash") {
+        let _ = splash.show();
+        if let Ok(mut at) = state.splash_shown_at.lock() {
+            at.get_or_insert_with(std::time::Instant::now);
+        }
+    }
+    Ok(())
+}
+
+/// Tiempo mínimo que la bienvenida permanece visible (para que se vea la marca).
+const SPLASH_MIN_VISIBLE: Duration = Duration::from_millis(900);
+/// Si la bienvenida no llega a pintarse en este tiempo, no se la espera.
+const SPLASH_PAINT_GRACE: Duration = Duration::from_millis(1500);
+
+/// Espera a que la bienvenida haya sido visible el tiempo mínimo. Nunca
+/// bloquea más de `SPLASH_PAINT_GRACE + SPLASH_MIN_VISIBLE`.
+async fn wait_for_splash(app: &AppHandle) {
+    let started = std::time::Instant::now();
+    loop {
+        let shown = app
+            .try_state::<AppState>()
+            .and_then(|s| s.splash_shown_at.lock().ok().and_then(|g| *g));
+        match shown {
+            Some(at) => {
+                let visible = at.elapsed();
+                if visible < SPLASH_MIN_VISIBLE {
+                    tokio::time::sleep(SPLASH_MIN_VISIBLE - visible).await;
+                }
+                return;
+            }
+            None if started.elapsed() >= SPLASH_PAINT_GRACE => return,
+            None => tokio::time::sleep(Duration::from_millis(50)).await,
+        }
     }
 }
 
@@ -1808,6 +1850,7 @@ pub fn run() {
                 sign_in_cancel: Mutex::new(None),
                 sign_in_code: Mutex::new(None),
                 startup: Mutex::new(StartupProgress::new()),
+                splash_shown_at: Mutex::new(None),
                 news: Mutex::new(None),
                 news_http: news_client()?,
                 mc_token: Mutex::new(None),
@@ -1868,6 +1911,7 @@ pub fn run() {
                     startup_steps(handle.clone()),
                 )
                 .await;
+                wait_for_splash(&handle).await;
                 show_main_and_close_splash(&handle);
             });
             Ok(())
@@ -1875,6 +1919,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             app_info,
             get_startup_progress,
+            splash_ready,
             get_settings,
             save_settings,
             get_account,

@@ -37,6 +37,7 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
 export const api = {
   appInfo: () => call<AppInfo>("app_info"),
   getStartupProgress: () => call<StartupProgress>("get_startup_progress"),
+  splashReady: () => call<void>("splash_ready"),
   getSettings: () => call<Settings>("get_settings"),
   saveSettings: (settings: Settings) => call<Settings>("save_settings", { settings }),
   listInstances: () => call<InstanceList>("list_instances"),

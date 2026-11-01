@@ -41,9 +41,11 @@ instancias, las cuentas, los ajustes y los códigos `NBL-` se conservan tal cual
   tiene la cuenta, vuelta a la skin por defecto y biblioteca local con las
   skins subidas para volver a ponerlas con un clic. Solo para cuentas de
   Microsoft (usa la API oficial de Minecraft Services).
-- **Pantalla de arranque instantánea**: `index.html` incluye una versión
-  estática del splash (logo, nombre y barra), así que la ventana nunca se ve
-  en negro mientras carga la interfaz.
+- **Pantalla de arranque visible**: la ventana de bienvenida nace oculta y se
+  muestra cuando ya tiene contenido (antes aparecía un recuadro negro), se
+  mantiene al menos 0,9 s para que se vea la marca y, si no llega a pintarse
+  en 1,5 s, el launcher se abre igualmente. `index.html` incluye además una
+  versión estática del splash para cualquier ventana que tarde en cargar.
 - **Noticias de Minecraft**: se leen los feeds públicos del launcher oficial
   (`launchercontent.mojang.com`), se cachean 30 minutos y se guarda una copia en
   disco para mostrarlas sin conexión.

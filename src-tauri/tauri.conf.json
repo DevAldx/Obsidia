@@ -25,7 +25,8 @@
         "skipTaskbar": true,
         "center": true,
         "shadow": false,
-        "backgroundColor": "#09080d"
+        "backgroundColor": "#09080d",
+        "visible": false
       },
       {
         "label": "main",
