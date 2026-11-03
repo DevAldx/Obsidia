@@ -86,5 +86,6 @@ Actualiza:
 4. No se reutiliza un tag ni una versión ya publicada.
 5. Si un release sale mal, se corrige y se publica el siguiente parche.
 
-Para el proceso completo, ver `INSTRUCCIONES_ACTUALIZACION.txt` y
-`INSTRUCCIONES_WINDOWS.txt`.
+La release la publica GitHub Actions al empujar la etiqueta: compila, firma,
+genera `latest.json` y usa `PATCH_NOTES_<versión>.md` como notas. Las notas de
+versiones anteriores se pueden borrar del repositorio; quedan en GitHub.

@@ -102,10 +102,10 @@ El AppImage queda en `src-tauri/target/release/bundle/appimage/` y el instalador
 NSIS en `src-tauri/target/release/bundle/nsis/`.
 
 Para publicar: sube la versión con `scripts/bump-version.sh` (`patch`, `minor`,
-`major` o `set X.Y.Z`), compila en cada plataforma, genera `latest.json` con
-`create_latest_json.sh` y sube los artefactos firmados y `latest.json` al mismo
-release. Los detalles están en `INSTRUCCIONES_ACTUALIZACION.txt` y
-`INSTRUCCIONES_WINDOWS.txt`.
+`major` o `set X.Y.Z`), escribe `PATCH_NOTES_<versión>.md`, haz commit y empuja
+la etiqueta `vX.Y.Z`. El workflow `.github/workflows/release.yml` compila y
+firma el AppImage y el instalador de Windows, genera `latest.json` con
+`create_latest_json.sh` y crea la release con esas notas.
 
 ## Actualizaciones y versiones
 
@@ -253,6 +253,6 @@ Si después de migrar vuelves a abrir una versión 0.3.x, no verá tus instancia
 ## Documentación
 
 - `VERSIONADO.md`: formato y proceso de versiones.
-- `INSTRUCCIONES_ACTUALIZACION.txt`: compilar, firmar y publicar.
-- `INSTRUCCIONES_WINDOWS.txt`: instalador y pruebas en Windows.
-- `PATCH_NOTES_0.4.0.md`: cambios de la versión actual del repositorio.
+- `PATCH_NOTES_<versión>.md`: cambios de la versión actual. Las notas de las
+  versiones anteriores están en las releases de GitHub.
+- `server/README.md`: servidor para compartir y catálogo comunitario.
