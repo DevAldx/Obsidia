@@ -17,6 +17,8 @@ use obsidia_core::{
     java::{self, JavaRuntime},
     launcher::{self, LaunchAuth, LaunchInput, Screen},
     background,
+    catalog::{self, CatalogEntry, CatalogFile},
+    modrinth::{self, ModpackPreview, MrVersion, SearchQuery, SearchResults},
     minecraft::{fabric, install::copy_assets, Installer, Reporter, VersionSummary},
     mods::{self, ModEntry},
     auth::skins::{self, LibrarySkin, SkinProfile, SkinVariant},
@@ -136,6 +138,8 @@ const MAX_BACKGROUND_B64: usize = 21 * 1024 * 1024; // 15 MB de imagen + margen
 const MAX_ICON_B64: usize = 6 * 1024 * 1024; // 4 MB de PNG + margen
 const MAX_MOD_B64: usize = 268 * 1024 * 1024; // 200 MB por mod + margen
 const MAX_MOD_FILES: usize = 256;
+/// 256 MB de `.mrpack` en base64 (+ margen).
+const MAX_MRPACK_B64: usize = 344 * 1024 * 1024;
 // Tope agregado del IPC: evita que 256 archivos de 200 MB se decodifiquen a la
 // vez (hasta ~51 GB en memoria) y agoten el proceso.
 const MAX_MOD_TOTAL_B64: usize = 1024 * 1024 * 1024; // 1 GiB codificado
@@ -1187,6 +1191,39 @@ struct ShareProgressEvent {
     total: u64,
 }
 
+/// Cuenta con la que se sube al servidor para compartir. Hace falta una cuenta
+/// de Microsoft real: el servidor la verifica con el certificado de Mojang.
+async fn share_identity(state: &AppState, client_id: &str) -> CmdResult<Identity> {
+    match state.auth_store.cached_account() {
+        Some(account) if account.kind != AccountKind::Offline => {
+            let ep = AuthEndpoints::live();
+            match auth::resume(&state.auth_http, &ep, client_id, &state.auth_store).await? {
+                Some(signed_in) => Ok(Identity {
+                    username: signed_in.account.username.clone(),
+                    uuid: signed_in.account.uuid.clone(),
+                    access_token: signed_in.session.access_token.clone(),
+                }),
+                None => Err(CommandError::new(
+                    "tu sesión de Microsoft no está disponible en este PC; inicia sesión de nuevo.",
+                )),
+            }
+        }
+        _ => Err(CommandError::new(
+            "para subir o publicar necesitas iniciar sesión con una cuenta de Microsoft (las cuentas locales no sirven).",
+        )),
+    }
+}
+
+/// URL del servidor para compartir y Client ID de Microsoft (el guard de
+/// ajustes no puede cruzar un `await`).
+fn share_settings(state: &AppState) -> CmdResult<(String, String)> {
+    let settings = state.settings()?;
+    Ok((
+        settings.sharing.effective_url(),
+        settings.account.microsoft_client_id.clone().unwrap_or_default(),
+    ))
+}
+
 /// Sube la instancia al servidor para compartir y devuelve un código corto.
 /// Lo que está en Modrinth no se sube; mods privados, imagen y configs sí.
 /// El progreso llega por el evento `share-progress`.
@@ -1200,38 +1237,8 @@ async fn upload_share_pack(
 ) -> CmdResult<UploadedPack> {
     let id = InstanceId::parse(&instance_id)?;
     let view = state.instances.get(&id)?;
-    // El guard de ajustes no puede cruzar un `await`.
-    let (base, client_id) = {
-        let settings = state.settings()?;
-        (
-            settings.sharing.effective_url(),
-            settings.account.microsoft_client_id.clone().unwrap_or_default(),
-        )
-    };
-
-    // Hace falta una cuenta de Microsoft real: el servidor la verifica con Mojang.
-    let identity = match state.auth_store.cached_account() {
-        Some(account) if account.kind != AccountKind::Offline => {
-            let ep = AuthEndpoints::live();
-            match auth::resume(&state.auth_http, &ep, &client_id, &state.auth_store).await? {
-                Some(signed_in) => Identity {
-                    username: signed_in.account.username.clone(),
-                    uuid: signed_in.account.uuid.clone(),
-                    access_token: signed_in.session.access_token.clone(),
-                },
-                None => {
-                    return Err(CommandError::new(
-                        "tu sesión de Microsoft no está disponible en este PC; inicia sesión de nuevo.",
-                    ))
-                }
-            }
-        }
-        _ => {
-            return Err(CommandError::new(
-                "para subir un pack necesitas iniciar sesión con una cuenta de Microsoft (las cuentas locales no sirven).",
-            ))
-        }
-    };
+    let (base, client_id) = share_settings(&state)?;
+    let identity = share_identity(&state, &client_id).await?;
 
     let dir = state.paths.instance_dir(&id);
     let inst = &view.instance;
@@ -1289,6 +1296,189 @@ fn export_manifest_template(state: State<'_, AppState>, instance_id: String) -> 
     std::fs::write(&dest, json)
         .map_err(|e| CommandError::new(format!("no se pudo escribir el manifiesto: {e}")))?;
     Ok(dest.to_string_lossy().into_owned())
+}
+
+// ───────────────────────────── Modrinth ─────────────────────────────
+
+#[tauri::command]
+async fn modrinth_search(query: SearchQuery) -> CmdResult<SearchResults> {
+    Ok(modrinth::search(&modrinth::http_client()?, &query).await?)
+}
+
+/// IDs de los proyectos de Modrinth que ya tiene la instancia.
+#[tauri::command]
+async fn modrinth_installed(state: State<'_, AppState>, instance_id: String) -> CmdResult<Vec<String>> {
+    let dir = mods_dir_for(&state, &instance_id)?;
+    Ok(modrinth::installed_projects(&modrinth::http_client()?, &dir)
+        .await?
+        .into_iter()
+        .collect())
+}
+
+#[tauri::command]
+async fn modrinth_install_mod(
+    state: State<'_, AppState>,
+    instance_id: String,
+    project_id: String,
+) -> CmdResult<modrinth::InstallOutcome> {
+    let id = InstanceId::parse(&instance_id)?;
+    let inst = state.instances.get(&id)?.instance;
+    let dir = state.paths.instance_dir(&id).join("mods");
+    Ok(modrinth::install_mod(
+        &modrinth::http_client()?,
+        &dir,
+        &project_id,
+        &inst.minecraft_version,
+        inst.loader,
+    )
+    .await?)
+}
+
+/// Versiones de un modpack que Obsidia sabe instalar (Fabric o Vanilla).
+#[tauri::command]
+async fn modpack_versions(project_id: String) -> CmdResult<Vec<MrVersion>> {
+    let versions = modrinth::project_versions(&modrinth::http_client()?, &project_id, None, None).await?;
+    Ok(versions
+        .into_iter()
+        .filter(|v| v.loaders.iter().any(|l| l == "fabric" || l == "minecraft"))
+        .take(60)
+        .collect())
+}
+
+#[tauri::command]
+async fn modpack_preview_version(
+    state: State<'_, AppState>,
+    version_id: String,
+    icon_url: Option<String>,
+) -> CmdResult<ModpackPreview> {
+    Ok(modrinth::preview_version(&modrinth::http_client()?, &state.paths, &version_id, icon_url).await?)
+}
+
+/// Un `.mrpack` elegido desde el PC (el webview manda el contenido en base64).
+#[tauri::command]
+fn modpack_preview_file(state: State<'_, AppState>, data_base64: String) -> CmdResult<ModpackPreview> {
+    if data_base64.len() > MAX_MRPACK_B64 {
+        return Err(CommandError::new("el modpack es demasiado grande"));
+    }
+    let bytes = BASE64
+        .decode(data_base64.as_bytes())
+        .map_err(|e| CommandError::new(format!("archivo no válido ({e})")))?;
+    Ok(modrinth::preview_bytes(&state.paths, &bytes, None)?)
+}
+
+/// Instala el modpack previsualizado en segundo plano. El progreso llega por
+/// `install-progress` (con `id` = token) y el resultado por `import-state`,
+/// igual que al importar por código.
+#[tauri::command]
+async fn modpack_install(app: AppHandle, state: State<'_, AppState>, token: String) -> CmdResult<()> {
+    let (mc, loader, loader_version) = modrinth::cached_requirements(&state.paths, &token)?;
+    let app2 = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let state = app2.state::<AppState>();
+        let reporter = {
+            let app3 = app2.clone();
+            let progress_id = token.clone();
+            Reporter::new(move |p| {
+                let _ = app3.emit(
+                    "install-progress",
+                    ProgressEvent {
+                        id: &progress_id,
+                        phase: p.phase,
+                        done: p.done,
+                        total: p.total,
+                    },
+                );
+            })
+        };
+        let result = async {
+            let prepared = state
+                .installer
+                .prepare(&mc, loader, loader_version.as_deref(), &reporter)
+                .await?;
+            java::ensure_for_meta(&state.paths, &JavaChoice::Auto, &prepared.meta, &reporter).await?;
+            modrinth::install_modpack(&state.paths, &state.instances, &token, &reporter).await
+        }
+        .await;
+        let event = match result {
+            Ok(id) => ImportStateEvent {
+                state: "success",
+                instance_id: Some(id.to_string()),
+                message: None,
+            },
+            Err(e) => ImportStateEvent {
+                state: "error",
+                instance_id: None,
+                message: Some(e.to_string()),
+            },
+        };
+        let _ = app2.emit("import-state", event);
+    });
+    Ok(())
+}
+
+// ───────────────────────────── Catálogo comunitario ─────────────────────────────
+
+#[tauri::command]
+async fn catalog_list(state: State<'_, AppState>) -> CmdResult<Vec<CatalogEntry>> {
+    let (base, _) = share_settings(&state)?;
+    Ok(catalog::list(&base).await?)
+}
+
+#[tauri::command]
+async fn catalog_publish_pack(
+    state: State<'_, AppState>,
+    code: String,
+    description: Option<String>,
+) -> CmdResult<CatalogEntry> {
+    let (base, client_id) = share_settings(&state)?;
+    let identity = share_identity(&state, &client_id).await?;
+    Ok(catalog::publish_pack(&base, &identity, &code, description.as_deref()).await?)
+}
+
+#[tauri::command]
+async fn catalog_publish_mod(
+    state: State<'_, AppState>,
+    instance_id: String,
+    file_name: String,
+    name: String,
+    description: Option<String>,
+) -> CmdResult<CatalogEntry> {
+    let id = InstanceId::parse(&instance_id)?;
+    let inst = state.instances.get(&id)?.instance;
+    let (base, client_id) = share_settings(&state)?;
+    let identity = share_identity(&state, &client_id).await?;
+    let dir = state.paths.instance_dir(&id).join("mods");
+    Ok(catalog::publish_mod(
+        &base,
+        &identity,
+        catalog::ModUpload {
+            mods_dir: &dir,
+            file_name: &file_name,
+            name: &name,
+            description: description.as_deref(),
+            minecraft_version: &inst.minecraft_version,
+            loader: inst.loader,
+        },
+    )
+    .await?)
+}
+
+#[tauri::command]
+async fn catalog_delete(state: State<'_, AppState>, id: String) -> CmdResult<()> {
+    let (base, client_id) = share_settings(&state)?;
+    let identity = share_identity(&state, &client_id).await?;
+    Ok(catalog::delete(&base, &identity, &id).await?)
+}
+
+#[tauri::command]
+async fn catalog_install_mod(
+    state: State<'_, AppState>,
+    instance_id: String,
+    file: CatalogFile,
+) -> CmdResult<String> {
+    let (base, _) = share_settings(&state)?;
+    let dir = mods_dir_for(&state, &instance_id)?;
+    Ok(catalog::install_mod(&base, &dir, &file).await?)
 }
 
 // ───────────────────────────── Fondo de instancia ─────────────────────────────
@@ -1951,12 +2141,26 @@ pub fn run() {
         })
         .setup(|app| {
             let boot = ObsidiaPaths::from_system()?;
-            let settings = Settings::load(&boot.settings_file())?;
+            let mut settings = Settings::load(&boot.settings_file())?;
             let paths = match &settings.data_dir {
                 Some(dir) => boot.with_data_dir(dir)?,
                 None => boot,
             };
             paths.ensure_layout()?;
+            // Las instancias de Nebula (`NBL-XXXXXX`) pasan a `OBS-XXXXXX`.
+            let migrated = InstanceStore::new(paths.clone()).migrate_legacy_ids();
+            if let Some((_, new)) = migrated
+                .iter()
+                .find(|(old, _)| settings.selected_instance.as_ref() == Some(old))
+            {
+                settings.selected_instance = Some(new.clone());
+                if let Err(e) = settings.save(&paths.settings_file()) {
+                    eprintln!("no se pudo guardar la instancia principal migrada: {e}");
+                }
+            }
+            for (old, new) in &migrated {
+                eprintln!("instancia {old} → {new}");
+            }
             let config_dir = paths.config_dir().to_path_buf();
             app.manage(AppState {
                 instances: InstanceStore::new(paths.clone()),
@@ -2079,6 +2283,18 @@ pub fn run() {
             export_manifest_template,
             export_share_code,
             upload_share_pack,
+            modrinth_search,
+            modrinth_installed,
+            modrinth_install_mod,
+            modpack_versions,
+            modpack_preview_version,
+            modpack_preview_file,
+            modpack_install,
+            catalog_list,
+            catalog_publish_pack,
+            catalog_publish_mod,
+            catalog_delete,
+            catalog_install_mod,
             play_instance,
             stop_instance,
             game_states,

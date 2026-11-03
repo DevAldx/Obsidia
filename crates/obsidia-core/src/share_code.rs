@@ -152,6 +152,8 @@ pub(crate) struct MrFile {
 #[derive(Debug, Deserialize)]
 pub(crate) struct MrVersion {
     pub(crate) id: String,
+    #[serde(default)]
+    pub(crate) project_id: String,
     pub(crate) files: Vec<MrFile>,
 }
 
@@ -542,6 +544,7 @@ mod tests {
             "abc".to_owned(),
             MrVersion {
                 id: "abc".into(),
+                project_id: String::new(),
                 files: vec![
                     MrFile {
                         hashes: MrHashes { sha1: "f".repeat(40) },

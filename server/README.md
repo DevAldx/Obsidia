@@ -51,6 +51,9 @@ desplegar. Si los dos están configurados, se usa R2.
 | `PUT /api/files/<sha1>` | con sesión | subir un archivo |
 | `POST /api/packs` | con sesión | publicar un pack y obtener el código |
 | `DELETE /api/packs/<código>` | el dueño | borrar un pack |
+| `GET /api/catalog` | cualquiera | el catálogo comunitario (packs y mods publicados) |
+| `POST /api/catalog` | con sesión | publicar un pack propio (por su código) o un mod ya subido |
+| `DELETE /api/catalog/<id>` | el dueño o un admin | quitar una publicación |
 
 - **Inicio de sesión:** igual que un servidor de Minecraft en online-mode. El
   launcher se "une" en Mojang con un `serverId` que da el Worker, y el Worker lo
@@ -61,6 +64,24 @@ desplegar. Si los dos están configurados, se usa R2.
   Modrinth o ya subidos con ese hash y tamaño.
 - **Límites** (en `wrangler.toml`): 25 MB por archivo con KV (50 MB con R2),
   y 500 MB y 30 packs por cuenta y día.
+
+## Catálogo comunitario
+
+Lo que los jugadores publican aparece en Obsidia, en **Descubrir › Modpacks ›
+Comunidad** (packs) y en **Añadir mods › Comunidad** de cada instancia (mods).
+
+- Un pack se publica a partir de un código `OBS-XXXXXX` que ya sea del mismo
+  usuario. Un mod se publica después de subir su `.jar` (el launcher rechaza
+  los que ya están en Modrinth: esos se instalan desde Modrinth).
+- Todo vive en un único índice, `catalog/index.json`: hasta 2.000
+  publicaciones en total y 50 por cuenta. Publicar cuenta para el límite
+  diario de packs (`DAILY_PACKS`).
+- **Moderar:** pon tu UUID (o varios, separados por comas) en la variable
+  `ADMIN_UUIDS` de `wrangler.toml` y podrás borrar cualquier publicación desde
+  el launcher. Borrar un pack con `DELETE /api/packs/<código>` lo quita también
+  del catálogo.
+- El autor que se muestra es el nombre que envía el launcher; lo que verifica el
+  servidor es el UUID de la cuenta (`owner`).
 
 ## Lo que debes saber
 

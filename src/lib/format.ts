@@ -40,3 +40,16 @@ export function formatMemory(mb: number): string {
 }
 
 export const errorText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
+/** 1234567 → «1,2 M». */
+export function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString("es-ES", { maximumFractionDigits: 1 })} M`;
+  if (n >= 1_000) return `${(n / 1_000).toLocaleString("es-ES", { maximumFractionDigits: 1 })} k`;
+  return String(n);
+}
+
+export function formatBytes(b: number): string {
+  if (b >= 1024 * 1024 * 1024) return `${(b / 1024 ** 3).toFixed(1)} GB`;
+  if (b >= 1024 * 1024) return `${(b / 1024 ** 2).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(b / 1024))} KB`;
+}

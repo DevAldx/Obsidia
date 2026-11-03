@@ -48,6 +48,16 @@ impl InstanceId {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// ¿Es un ID `NBL-` de la época de Nebula Launcher?
+    pub fn is_legacy(&self) -> bool {
+        self.0.starts_with(LEGACY_PREFIX)
+    }
+
+    /// El mismo sufijo con el prefijo `OBS-` (`NBL-K7P2X9` → `OBS-K7P2X9`).
+    pub fn modernized(&self) -> Self {
+        Self(format!("{PREFIX}{}", &self.0[PREFIX.len()..]))
+    }
 }
 
 impl fmt::Display for InstanceId {

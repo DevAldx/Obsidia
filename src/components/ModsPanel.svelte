@@ -6,6 +6,8 @@
   import { toasts } from "../lib/toast.svelte";
   import type { Instance, ModEntry } from "../lib/types";
   import Icon from "./Icon.svelte";
+  import ModBrowserModal from "./ModBrowserModal.svelte";
+  import PublishModModal from "./PublishModModal.svelte";
 
   let { instance }: { instance: Instance } = $props();
 
@@ -16,6 +18,8 @@
   let query = $state("");
   let fileInput = $state<HTMLInputElement | null>(null);
   let confirmDelete = $state<string | null>(null);
+  let browsing = $state(false);
+  let publishing = $state<ModEntry | null>(null);
 
   async function refresh() {
     error = "";
@@ -109,8 +113,11 @@
   <input bind:this={fileInput} type="file" accept=".jar" multiple hidden onchange={onFilesChosen} />
   <button class="btn" onclick={() => openFolder("mods")}><Icon name="folder" size={15} /> mods</button>
   <button class="btn" onclick={() => openFolder("config")}><Icon name="folder" size={15} /> config</button>
-  <button class="btn primary" onclick={() => fileInput?.click()} disabled={busy === "__import__"}>
-    <Icon name="plus" size={15} /> {busy === "__import__" ? "Importando…" : "Importar .jar"}
+  <button class="btn" onclick={() => fileInput?.click()} disabled={busy === "__import__"}>
+    <Icon name="upload" size={15} /> {busy === "__import__" ? "Importando…" : "Importar .jar"}
+  </button>
+  <button class="btn primary" onclick={() => (browsing = true)}>
+    <Icon name="plus" size={15} /> Añadir mods
   </button>
 </div>
 
@@ -127,7 +134,8 @@
   <div class="empty">
     <Icon name="puzzle" size={30} />
     <strong>Sin mods todavía</strong>
-    <p class="hint">Importa archivos .jar o arrástralos a la carpeta <span class="mono">mods</span>.</p>
+    <p class="hint">Búscalos en Modrinth o en la comunidad, o importa tus archivos .jar.</p>
+    <button class="btn primary" onclick={() => (browsing = true)}><Icon name="plus" size={15} /> Añadir mods</button>
   </div>
 {:else}
   <div class="list">
@@ -147,6 +155,9 @@
           <button class="btn sm danger" disabled={busy === mod.file_name} onclick={() => remove(mod)}>Borrar</button>
           <button class="btn sm ghost" onclick={() => (confirmDelete = null)}>No</button>
         {:else}
+          {#if instance.loader === "fabric"}
+            <button class="btn sm ghost icon" title="Publicar en la comunidad" onclick={() => (publishing = mod)}><Icon name="upload" size={15} /></button>
+          {/if}
           <button class="btn sm ghost icon" title="Eliminar" onclick={() => (confirmDelete = mod.file_name)}><Icon name="trash" size={15} /></button>
         {/if}
       </div>
@@ -154,6 +165,20 @@
       <p class="hint">Ningún mod coincide con «{query}».</p>
     {/each}
   </div>
+{/if}
+
+{#if browsing}
+  <ModBrowserModal
+    {instance}
+    onclose={() => (browsing = false)}
+    onchanged={() => {
+      void refresh();
+      void app.refreshInstances();
+    }}
+  />
+{/if}
+{#if publishing}
+  <PublishModModal {instance} mod={publishing} onclose={() => (publishing = null)} />
 {/if}
 
 <style>

@@ -5,6 +5,7 @@
 
 pub mod auth;
 pub mod background;
+pub mod catalog;
 pub mod config;
 pub mod downloads;
 pub mod error;
@@ -13,6 +14,7 @@ pub mod instances;
 pub mod java;
 pub mod launcher;
 pub mod minecraft;
+pub mod modrinth;
 pub mod mods;
 pub mod news;
 pub mod paths;

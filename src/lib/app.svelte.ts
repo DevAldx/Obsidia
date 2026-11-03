@@ -218,6 +218,19 @@ class AppState {
     }
   }
 
+  /** Instala un modpack ya previsualizado; el resultado llega por `import-state`. */
+  async installModpack(token: string) {
+    this.importBusy = true;
+    this.importError = null;
+    this.importedId = null;
+    try {
+      await api.modpackInstall(token);
+    } catch (e) {
+      this.importBusy = false;
+      this.importError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
   async detectJava() {
     this.javaLoading = true;
     try {

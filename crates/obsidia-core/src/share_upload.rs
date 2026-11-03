@@ -74,7 +74,7 @@ pub struct UploadedPack {
 /// `fase, hecho, total` (en bytes durante la subida).
 pub type Progress<'a> = &'a (dyn Fn(&str, u64, u64) + Send + Sync);
 
-fn http_client() -> Result<reqwest::Client> {
+pub(crate) fn http_client() -> Result<reqwest::Client> {
     reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .https_only(true)
@@ -86,7 +86,7 @@ fn http_client() -> Result<reqwest::Client> {
         .map_err(|e| CoreError::Network(e.to_string()))
 }
 
-fn normalize_base(base_url: &str) -> Result<String> {
+pub(crate) fn normalize_base(base_url: &str) -> Result<String> {
     let base = base_url.trim().trim_end_matches('/');
     let parsed = reqwest::Url::parse(base)
         .map_err(|_| CoreError::invalid("la URL del servidor para compartir no es válida"))?;
@@ -102,7 +102,7 @@ struct ServerError {
 }
 
 /// Convierte una respuesta no exitosa en un error legible con el mensaje del servidor.
-async fn check(resp: reqwest::Response, what: &str) -> Result<reqwest::Response> {
+pub(crate) async fn check(resp: reqwest::Response, what: &str) -> Result<reqwest::Response> {
     if resp.status().is_success() {
         return Ok(resp);
     }
@@ -115,7 +115,7 @@ async fn check(resp: reqwest::Response, what: &str) -> Result<reqwest::Response>
     Err(CoreError::Network(format!("{what}: {msg}")))
 }
 
-fn net(what: &'static str) -> impl Fn(reqwest::Error) -> CoreError {
+pub(crate) fn net(what: &'static str) -> impl Fn(reqwest::Error) -> CoreError {
     move |e| CoreError::Network(format!("{what}: {e}"))
 }
 
@@ -131,7 +131,7 @@ struct LoginResponse {
     token: String,
 }
 
-async fn login(client: &reqwest::Client, base: &str, identity: &Identity) -> Result<String> {
+pub(crate) async fn login(client: &reqwest::Client, base: &str, identity: &Identity) -> Result<String> {
     let cert = fetch_certificate(client, &identity.access_token).await?;
     let ch: Challenge = check(
         client
@@ -291,6 +291,11 @@ fn collect_config(dir: &Path) -> Result<Vec<LocalFile>> {
                 if meta.len() > MAX_CONFIG_FILE_BYTES {
                     continue; // cachés y bases de datos de mods: no son configuración
                 }
+                if meta.len() == 0 {
+                    // Vacíos (p. ej. copias `.bak` de JEI): no aportan nada y el
+                    // servidor no acepta subidas de 0 bytes.
+                    continue;
+                }
                 total += meta.len();
                 if out.len() >= MAX_CONFIG_FILES || total > MAX_CONFIG_TOTAL_BYTES {
                     return Err(CoreError::invalid(
@@ -326,7 +331,7 @@ fn local(dir: &Path, list: Vec<(String, String)>) -> Result<Vec<LocalFile>> {
         .collect()
 }
 
-async fn upload_file(
+pub(crate) async fn upload_file(
     client: &reqwest::Client,
     base: &str,
     token: &str,
@@ -350,7 +355,7 @@ async fn upload_file(
     Ok(())
 }
 
-async fn exists_on_server(client: &reqwest::Client, base: &str, sha1: &str) -> Result<bool> {
+pub(crate) async fn exists_on_server(client: &reqwest::Client, base: &str, sha1: &str) -> Result<bool> {
     let resp = client
         .head(format!("{base}/files/{sha1}"))
         .send()
@@ -552,6 +557,7 @@ mod tests {
         std::fs::write(config.join("a.json"), b"{}").unwrap();
         std::fs::write(config.join("sodium/options.json"), b"{\"x\":1}").unwrap();
         std::fs::write(config.join(".oculto"), b"x").unwrap();
+        std::fs::write(config.join("sodium/vacio.ini.bak.1"), b"").unwrap();
         std::fs::write(config.join("cache.db"), vec![0u8; (MAX_CONFIG_FILE_BYTES + 1) as usize]).unwrap();
 
         let files = collect_config(&config).unwrap();

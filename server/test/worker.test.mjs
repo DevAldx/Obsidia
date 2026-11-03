@@ -247,3 +247,72 @@ test("solo el dueño puede borrar un pack", async () => {
   setOwner(env, key, "f".repeat(32));
   assert.equal((await call(env, "DELETE", `/api/packs/${code}`, { token })).status, 403);
 });
+
+test("catálogo: publicar pack y mod, listar, y solo el dueño o un admin borra", async () => {
+  const env = makeEnv();
+  const { token } = await (await loginAs(env)).json();
+  const jar = new TextEncoder().encode("mod de la comunidad");
+  const hash = sha1(jar);
+
+  assert.deepEqual(await (await call(env, "GET", "/api/catalog")).json(), { items: [] });
+
+  // El mod tiene que estar subido antes.
+  const modBody = (size = jar.byteLength) =>
+    JSON.stringify({
+      kind: "mod",
+      name: "Mi mod",
+      author: "Steve",
+      description: "Hace cosas",
+      minecraft_version: "1.21.1",
+      loader: "fabric",
+      file: { file_name: "mi-mod.jar", sha1: hash, size },
+    });
+  assert.equal((await call(env, "POST", "/api/catalog", { token, body: modBody() })).status, 400, "sin subir");
+  await upload(env, token, jar);
+  assert.equal((await call(env, "POST", "/api/catalog", { body: modBody() })).status, 401, "sin sesión");
+  assert.equal((await call(env, "POST", "/api/catalog", { token, body: modBody(999) })).status, 400, "tamaño falso");
+  const mod = await call(env, "POST", "/api/catalog", { token, body: modBody() });
+  assert.equal(mod.status, 201, await mod.clone().text());
+  const modEntry = await mod.json();
+  assert.equal(modEntry.owner, UUID);
+  assert.equal((await call(env, "POST", "/api/catalog", { token, body: modBody() })).status, 409, "duplicado");
+
+  const created = await call(env, "POST", "/api/packs", {
+    token,
+    body: JSON.stringify(manifest(`${ORIGIN}/files/${hash}`, hash, jar.byteLength)),
+  });
+  const { code } = await created.json();
+  const pack = await call(env, "POST", "/api/catalog", {
+    token,
+    body: JSON.stringify({ kind: "pack", code, author: "Steve" }),
+  });
+  assert.equal(pack.status, 201);
+  const packEntry = await pack.json();
+  assert.equal(packEntry.mod_count, 1);
+
+  const bad = await call(env, "POST", "/api/catalog", {
+    token,
+    body: JSON.stringify({ kind: "pack", code, author: "no válido!" }),
+  });
+  assert.equal(bad.status, 400, "autor inválido");
+
+  const list = await (await call(env, "GET", "/api/catalog")).json();
+  assert.deepEqual(
+    list.items.map((e) => e.kind),
+    ["pack", "mod"],
+  );
+
+  // Otro dueño no puede borrar; un admin sí.
+  const catalogKey = "catalog/index.json";
+  const raw = USE_KV ? env.FILES.store.get(catalogKey).value : env.BUCKET.store.get(catalogKey).bytes;
+  const data = JSON.parse(new TextDecoder().decode(raw));
+  data.items.find((e) => e.id === modEntry.id).owner = "f".repeat(32);
+  await (USE_KV ? env.FILES : env.BUCKET).put(catalogKey, new TextEncoder().encode(JSON.stringify(data)));
+  assert.equal((await call(env, "DELETE", `/api/catalog/${modEntry.id}`, { token })).status, 403);
+  env.ADMIN_UUIDS = UUID;
+  assert.equal((await call(env, "DELETE", `/api/catalog/${modEntry.id}`, { token })).status, 204);
+
+  // Borrar el pack lo quita también del catálogo.
+  assert.equal((await call(env, "DELETE", `/api/packs/${code}`, { token })).status, 204);
+  assert.deepEqual((await (await call(env, "GET", "/api/catalog")).json()).items, []);
+});

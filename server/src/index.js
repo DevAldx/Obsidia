@@ -11,6 +11,11 @@
 //   POST /api/packs              cuerpo = manifiesto JSON -> { code }
 //   DELETE /api/packs/<code>     solo el dueño
 //
+// Catálogo comunitario (packs y mods que publican los jugadores):
+//   GET    /api/catalog          -> { items: [...] } (público)
+//   POST   /api/catalog          { kind: "pack", code } | { kind: "mod", name, file, ... }
+//   DELETE /api/catalog/<id>     el dueño o un admin (ADMIN_UUIDS)
+//
 // Inicio de sesión: con el certificado de jugador de Mojang (el par de claves
 // que Minecraft usa para firmar el chat). Mojang firma la clave pública de cada
 // cuenta; el launcher firma nuestro desafío con la clave privada. Aquí se
@@ -36,6 +41,12 @@ const MAX_MANIFEST_FILES = 512;
 const CHALLENGE_TTL_S = 120;
 const TOKEN_TTL_S = 60 * 60;
 const FILE_LISTS = ["mods", "resourcepacks", "shaderpacks", "config_files"];
+const CATALOG_KEY = "catalog/index.json";
+const CATALOG_MAX_ITEMS = 2000;
+const CATALOG_MAX_PER_USER = 50;
+const CATALOG_ID_RE = /^[a-z0-9]{10}$/;
+const MC_NAME_RE = /^[A-Za-z0-9_]{1,16}$/;
+const MC_VERSION_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/;
 
 const enc = new TextEncoder();
 
@@ -158,6 +169,11 @@ async function route(request, env) {
 
   m = path.match(/^\/api\/packs\/(OBS-[A-Z0-9]{6})$/);
   if (m && method === "DELETE") return deletePack(request, env, m[1]);
+
+  if (path === "/api/catalog" && method === "GET") return listCatalog(env);
+  if (path === "/api/catalog" && method === "POST") return publishToCatalog(request, env, url.origin);
+  m = path.match(/^\/api\/catalog\/([a-z0-9]{10})$/);
+  if (m && method === "DELETE") return deleteFromCatalog(request, env, m[1]);
 
   return json({ error: "ruta no encontrada" }, 404);
 }
@@ -419,5 +435,134 @@ async function deletePack(request, env, code) {
   if (!obj) throw new HttpError(404, "no existe ningún pack con ese código");
   if (obj.customMetadata?.owner !== uuid) throw new HttpError(403, "este pack no es tuyo");
   await env.BUCKET.delete(key);
+  // Un pack borrado tampoco debe seguir en el catálogo.
+  const catalog = await readCatalog(env);
+  const before = catalog.items.length;
+  catalog.items = catalog.items.filter((e) => e.code !== code);
+  if (catalog.items.length !== before) await writeCatalog(env, catalog);
+  return new Response(null, { status: 204 });
+}
+
+// ───────────────────────────── Catálogo comunitario ─────────────────────────────
+//
+// Un único índice JSON (`catalog/index.json`), del más nuevo al más viejo. Vale
+// igual para KV y R2 sin depender de `list`. Con mucho tráfico simultáneo dos
+// publicaciones podrían pisarse; para un servidor de comunidad pequeño basta.
+
+async function readCatalog(env) {
+  const obj = await env.BUCKET.get(CATALOG_KEY);
+  if (!obj) return { items: [] };
+  const data = await obj.json().catch(() => null);
+  return Array.isArray(data?.items) ? data : { items: [] };
+}
+
+const writeCatalog = (env, catalog) => env.BUCKET.put(CATALOG_KEY, JSON.stringify(catalog));
+
+async function listCatalog(env) {
+  const catalog = await readCatalog(env);
+  return json(catalog, 200, { "cache-control": "public, max-age=30" });
+}
+
+function isAdmin(env, uuid) {
+  return String(env.ADMIN_UUIDS ?? "")
+    .split(",")
+    .map((u) => u.trim().replace(/-/g, "").toLowerCase())
+    .includes(uuid);
+}
+
+function cleanText(value, max) {
+  if (value == null) return null;
+  if (typeof value !== "string") throw new HttpError(400, "texto inválido");
+  // eslint-disable-next-line no-control-regex
+  const t = value.replace(/[\u0000-\u001f\u007f]/g, " ").trim();
+  if (t.length > max) throw new HttpError(400, `el texto no puede pasar de ${max} caracteres`);
+  return t || null;
+}
+
+function newCatalogId() {
+  const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
+  return [...crypto.getRandomValues(new Uint8Array(10))].map((b) => alphabet[b % alphabet.length]).join("");
+}
+
+async function publishToCatalog(request, env, origin) {
+  const uuid = await requireUser(request, env);
+  const body = await request.json().catch(() => null);
+  if (typeof body !== "object" || body === null) throw new HttpError(400, "petición inválida");
+  const author = String(body.author ?? "");
+  if (!MC_NAME_RE.test(author)) throw new HttpError(400, "nombre de autor inválido");
+  const description = cleanText(body.description, 300);
+
+  const catalog = await readCatalog(env);
+  if (catalog.items.length >= CATALOG_MAX_ITEMS) throw new HttpError(507, "el catálogo está lleno");
+  if (catalog.items.filter((e) => e.owner === uuid).length >= CATALOG_MAX_PER_USER) {
+    throw new HttpError(429, `ya tienes ${CATALOG_MAX_PER_USER} publicaciones; borra alguna antes`);
+  }
+  const quota = await readQuota(env, uuid);
+  if (quota.data.packs >= limits(env).dailyPacks) throw new HttpError(429, "has alcanzado el límite de publicaciones de hoy");
+
+  let entry;
+  if (body.kind === "pack") {
+    const code = String(body.code ?? "");
+    if (!CODE_RE.test(code)) throw new HttpError(400, "código inválido");
+    const obj = await env.BUCKET.get(`packs/${code}.json`);
+    if (!obj) throw new HttpError(404, "no existe ningún pack con ese código");
+    if (obj.customMetadata?.owner !== uuid) throw new HttpError(403, "solo puedes publicar tus propios packs");
+    if (catalog.items.some((e) => e.code === code)) throw new HttpError(409, "este pack ya está publicado");
+    const manifest = await obj.json();
+    entry = {
+      kind: "pack",
+      name: manifest.name,
+      description: description ?? manifest.description ?? null,
+      minecraft_version: manifest.minecraft_version,
+      loader: manifest.loader,
+      loader_version: manifest.loader_version ?? null,
+      code,
+      image_url: manifest.background_url ?? null,
+      mod_count: Array.isArray(manifest.mods) ? manifest.mods.length : 0,
+    };
+  } else if (body.kind === "mod") {
+    const name = cleanText(body.name, 48);
+    if (!name) throw new HttpError(400, "falta el nombre del mod");
+    if (typeof body.minecraft_version !== "string" || !MC_VERSION_RE.test(body.minecraft_version)) {
+      throw new HttpError(400, "versión de Minecraft inválida");
+    }
+    if (body.loader !== "fabric") throw new HttpError(400, "loader inválido");
+    const f = body.file ?? {};
+    if (!validFileName(f.file_name, "mods")) throw new HttpError(400, "nombre de archivo inválido");
+    if (typeof f.sha1 !== "string" || !SHA1_RE.test(f.sha1)) throw new HttpError(400, "SHA-1 inválido");
+    if (!Number.isInteger(f.size) || f.size <= 0) throw new HttpError(400, "tamaño inválido");
+    if (!(await checkFileUrl(env, origin, `${origin}/files/${f.sha1}`, f.sha1, f.size))) {
+      throw new HttpError(400, "el archivo no se ha subido a este servidor");
+    }
+    if (catalog.items.some((e) => e.file?.sha1 === f.sha1)) throw new HttpError(409, "este mod ya está publicado");
+    entry = {
+      kind: "mod",
+      name,
+      description,
+      minecraft_version: body.minecraft_version,
+      loader: "fabric",
+      file: { file_name: f.file_name, sha1: f.sha1, size: f.size },
+    };
+  } else {
+    throw new HttpError(400, "tipo de publicación inválido");
+  }
+
+  entry = { id: newCatalogId(), ...entry, author, owner: uuid, created: new Date().toISOString() };
+  catalog.items.unshift(entry);
+  await writeCatalog(env, catalog);
+  quota.data.packs += 1;
+  await writeQuota(env, quota);
+  return json(entry, 201);
+}
+
+async function deleteFromCatalog(request, env, id) {
+  const uuid = await requireUser(request, env);
+  if (!CATALOG_ID_RE.test(id)) throw new HttpError(400, "identificador inválido");
+  const catalog = await readCatalog(env);
+  const entry = catalog.items.find((e) => e.id === id);
+  if (!entry) throw new HttpError(404, "esa publicación no existe");
+  if (entry.owner !== uuid && !isAdmin(env, uuid)) throw new HttpError(403, "esta publicación no es tuya");
+  catalog.items = catalog.items.filter((e) => e.id !== id);
+  await writeCatalog(env, catalog);
   return new Response(null, { status: 204 });
 }

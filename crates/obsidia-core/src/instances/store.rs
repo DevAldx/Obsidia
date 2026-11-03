@@ -157,6 +157,72 @@ impl InstanceStore {
         Ok(instance)
     }
 
+    /// Pasa las instancias `NBL-XXXXXX` de Nebula Launcher a `OBS-XXXXXX`:
+    /// renombra la carpeta (con el mismo sufijo si está libre) y actualiza el
+    /// `id` de su `instance.json`. Devuelve los pares `(antiguo, nuevo)`.
+    ///
+    /// Es conservadora: se salta las instancias cuyo `instance.json` no se
+    /// puede leer y, si algo falla a medias, deshace el renombrado para que la
+    /// instancia siga funcionando con su ID antiguo. Debe ejecutarse al
+    /// arrancar, antes de que se pueda lanzar ningún juego.
+    pub fn migrate_legacy_ids(&self) -> Vec<(InstanceId, InstanceId)> {
+        let dir = self.paths.instances_dir();
+        let Ok(entries) = fs::read_dir(&dir) else {
+            return Vec::new();
+        };
+        let mut legacy: Vec<InstanceId> = entries
+            .flatten()
+            .filter(|e| e.path().is_dir())
+            .filter_map(|e| InstanceId::parse(&e.file_name().to_string_lossy()).ok())
+            .filter(InstanceId::is_legacy)
+            .collect();
+        legacy.sort();
+
+        let mut migrated = Vec::new();
+        for old in legacy {
+            // Solo instancias sanas: una rota se deja tal cual para no empeorarla.
+            if self.load(&old).is_err() {
+                continue;
+            }
+            let mut new = old.modernized();
+            let mut tries = 0;
+            while self.paths.instance_dir(&new).exists() && tries < 32 {
+                new = InstanceId::generate();
+                tries += 1;
+            }
+            if self.paths.instance_dir(&new).exists() {
+                continue;
+            }
+            match self.rename_instance(&old, &new) {
+                Ok(()) => migrated.push((old, new)),
+                Err(e) => eprintln!("no se pudo pasar {old} a {new}: {e}"),
+            }
+        }
+        migrated
+    }
+
+    fn rename_instance(&self, old: &InstanceId, new: &InstanceId) -> Result<()> {
+        let from = self.paths.instance_dir(old);
+        let to = self.paths.instance_dir(new);
+        fs::rename(&from, &to).map_err(|e| CoreError::io(&from, e))?;
+        let rewritten = (|| {
+            let path = to.join("instance.json");
+            let bytes = fs::read(&path).map_err(|e| CoreError::io(&path, e))?;
+            let mut value: serde_json::Value =
+                serde_json::from_slice(&bytes).map_err(|e| CoreError::Json { path: path.clone(), source: e })?;
+            value["id"] = serde_json::Value::String(new.to_string());
+            let json = serde_json::to_vec_pretty(&value).map_err(|e| CoreError::Json { path: path.clone(), source: e })?;
+            filesystem::write_atomic(&path, &json)?;
+            self.load(new).map(|_| ())
+        })();
+        if let Err(e) = rewritten {
+            // Deja todo como estaba: la instancia sigue valiendo con su ID antiguo.
+            let _ = fs::rename(&to, &from);
+            return Err(e);
+        }
+        Ok(())
+    }
+
     pub fn list(&self) -> Result<InstanceList> {
         let dir = self.paths.instances_dir();
         let entries = match fs::read_dir(&dir) {
@@ -371,5 +437,49 @@ mod tests {
         i.memory = Memory { min_mb: 4096, max_mb: 1024 };
         assert!(s.create(i).is_err());
         assert!(s.list().unwrap().instances.is_empty());
+    }
+
+    /// Simula una instancia creada por Nebula: misma estructura, ID `NBL-`.
+    fn legacy_instance(st: &InstanceStore, legacy: &str) -> InstanceId {
+        let created = st.create(new_input("Nebula")).expect("create");
+        let old = InstanceId::parse(legacy).expect("id");
+        let from = st.paths.instance_dir(&created.instance.id);
+        let to = st.paths.instance_dir(&old);
+        fs::rename(&from, &to).expect("rename");
+        let path = to.join("instance.json");
+        let mut v: serde_json::Value = serde_json::from_slice(&fs::read(&path).expect("read")).expect("json");
+        v["id"] = legacy.into();
+        fs::write(&path, serde_json::to_vec(&v).expect("ser")).expect("write");
+        fs::write(to.join("mods/a.jar"), b"x").expect("mod");
+        old
+    }
+
+    #[test]
+    fn legacy_nbl_instances_become_obs_keeping_their_files() {
+        let tmp = TempDir::new();
+        let st = store(&tmp);
+        let a = legacy_instance(&st, "NBL-AAAAAA");
+        // Conflicto: ya existe una OBS con el mismo sufijo.
+        let b = legacy_instance(&st, "NBL-BBBBBB");
+        fs::create_dir_all(st.paths.instance_dir(&b.modernized())).expect("dir");
+        // Rota: sin instance.json legible, no se toca.
+        let broken = st.paths.instance_dir(&InstanceId::parse("NBL-CCCCCC").expect("id"));
+        fs::create_dir_all(&broken).expect("dir");
+
+        let migrated = st.migrate_legacy_ids();
+        assert_eq!(migrated.len(), 2);
+        assert_eq!(migrated[0], (a.clone(), InstanceId::parse("OBS-AAAAAA").expect("id")));
+        let (old_b, new_b) = &migrated[1];
+        assert_eq!(old_b, &b);
+        assert!(new_b.as_str().starts_with("OBS-") && *new_b != b.modernized(), "sufijo nuevo si está ocupado");
+
+        for (old, new) in &migrated {
+            assert!(!st.paths.instance_dir(old).exists());
+            let view = st.get(new).expect("carga con el ID nuevo");
+            assert_eq!(view.instance.id, *new);
+            assert_eq!(view.mod_count, 1, "los archivos viajan con la carpeta");
+        }
+        assert!(broken.is_dir(), "la rota se queda igual");
+        assert!(st.migrate_legacy_ids().is_empty(), "idempotente");
     }
 }

@@ -10,6 +10,7 @@
   import Icon from "../components/Icon.svelte";
   import CreateInstanceModal from "../components/CreateInstanceModal.svelte";
   import ImportByCodeModal from "../components/ImportByCodeModal.svelte";
+  import ModpackCatalog from "../components/ModpackCatalog.svelte";
 
   type Filter = "all" | "news" | "versions";
   let filter = $state<Filter>("all");
@@ -54,7 +55,7 @@
   <header class="intro">
     <p class="eyebrow">Descubrir</p>
     <h1>Encuentra tu próxima partida</h1>
-    <p class="muted">Instala configuraciones compartidas, empieza una versión nueva en un clic o ponte al día.</p>
+    <p class="muted">Instala modpacks de Modrinth y de la comunidad, empieza una versión nueva en un clic o ponte al día.</p>
   </header>
 
   <!-- Importar por código: barra ancha, protagonista -->
@@ -101,6 +102,9 @@
     </div>
   </section>
 
+  <!-- Catálogo de modpacks: Modrinth y comunidad -->
+  <ModpackCatalog />
+
   <!-- Revista de novedades -->
   <section>
     <div class="section-head">
@@ -142,17 +146,6 @@
     {/if}
   </section>
 
-  <!-- Preparado para el futuro catálogo de mods/modpacks -->
-  <section class="soon">
-    <div>
-      <span class="tag ember">Próximamente</span>
-      <h3 class="display">Catálogo de modpacks y mods</h3>
-      <p class="muted">Buscar e instalar contenido directamente desde Obsidia, sin descargar archivos a mano.</p>
-    </div>
-    <div class="soon-art" aria-hidden="true">
-      <span class="facet"></span><span class="facet"></span><span class="facet"></span>
-    </div>
-  </section>
 </div>
 
 {#snippet card(item: NewsItem, isLead: boolean)}
@@ -498,34 +491,6 @@
   }
 
   /* Próximamente */
-  .soon {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
-    padding: 24px 28px;
-    border-radius: var(--radius-lg);
-    border: 1px dashed var(--border-strong);
-  }
-  .soon h3 {
-    font-size: 20px;
-    margin: 10px 0 4px;
-  }
-  .soon-art {
-    display: flex;
-    gap: 10px;
-  }
-  .soon-art span {
-    --facet: 10px;
-    width: 54px;
-    height: 54px;
-    background: rgb(255 255 255 / 0.05);
-  }
-  .soon-art span:nth-child(2) {
-    background: color-mix(in srgb, var(--accent) 30%, transparent);
-    transform: translateY(-10px);
-  }
-
   @media (max-width: 1050px) {
     .import {
       grid-template-columns: 1fr;

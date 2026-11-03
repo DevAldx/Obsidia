@@ -21,6 +21,13 @@ import type {
   SkinProfile,
   SkinVariant,
   LibrarySkin,
+  SearchQuery,
+  SearchResults,
+  InstallOutcome,
+  MrVersion,
+  ModpackPreview,
+  CatalogEntry,
+  CatalogFile,
 } from "./types";
 
 /** Los comandos de Rust fallan con `{ message }`; lo normalizamos a Error. */
@@ -103,6 +110,27 @@ export const api = {
   setCape: (capeId: string | null) => call<SkinProfile>("set_cape", { capeId }),
   listSkinLibrary: () => call<LibrarySkin[]>("list_skin_library"),
   deleteLibrarySkin: (id: string) => call<void>("delete_library_skin", { id }),
+
+  // Modrinth
+  modrinthSearch: (query: SearchQuery) => call<SearchResults>("modrinth_search", { query }),
+  modrinthInstalled: (instanceId: string) => call<string[]>("modrinth_installed", { instanceId }),
+  modrinthInstallMod: (instanceId: string, projectId: string) =>
+    call<InstallOutcome>("modrinth_install_mod", { instanceId, projectId }),
+  modpackVersions: (projectId: string) => call<MrVersion[]>("modpack_versions", { projectId }),
+  modpackPreviewVersion: (versionId: string, iconUrl: string | null) =>
+    call<ModpackPreview>("modpack_preview_version", { versionId, iconUrl }),
+  modpackPreviewFile: (dataBase64: string) => call<ModpackPreview>("modpack_preview_file", { dataBase64 }),
+  modpackInstall: (token: string) => call<void>("modpack_install", { token }),
+
+  // Catálogo comunitario
+  catalogList: () => call<CatalogEntry[]>("catalog_list"),
+  catalogPublishPack: (code: string, description: string | null) =>
+    call<CatalogEntry>("catalog_publish_pack", { code, description }),
+  catalogPublishMod: (instanceId: string, fileName: string, name: string, description: string | null) =>
+    call<CatalogEntry>("catalog_publish_mod", { instanceId, fileName, name, description }),
+  catalogDelete: (id: string) => call<void>("catalog_delete", { id }),
+  catalogInstallMod: (instanceId: string, file: CatalogFile) =>
+    call<string>("catalog_install_mod", { instanceId, file }),
 };
 
 /** "-Xmx2G -XX:+UseG1GC" → ["-Xmx2G", "-XX:+UseG1GC"] */

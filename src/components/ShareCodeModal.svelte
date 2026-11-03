@@ -35,6 +35,23 @@
   let copyTimer: ReturnType<typeof setTimeout> | undefined;
   let templatePath = $state<string | null>(null);
   let unlisten: UnlistenFn | undefined;
+  let publishing = $state(false);
+  let publishedCode = $state<string | null>(null);
+  let publishError = $state("");
+
+  async function publishToCommunity() {
+    if (!uploaded) return;
+    publishing = true;
+    publishError = "";
+    try {
+      await api.catalogPublishPack(uploaded.code, description.trim() || null);
+      publishedCode = uploaded.code;
+    } catch (e) {
+      publishError = e instanceof Error ? e.message : String(e);
+    } finally {
+      publishing = false;
+    }
+  }
 
   onMount(async () => {
     void app.ensureBackground(instance.id);
@@ -95,7 +112,7 @@
   const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 </script>
 
-<Modal title="Compartir instancia" subtitle="Genera un código que lleva dentro toda la configuración." width={520} {busy} {onclose}>
+<Modal title="Compartir instancia" subtitle="Genera un código que lleva dentro toda la configuración." width={520} busy={busy || publishing} {onclose}>
   <div class="summary">
     <strong class="display">{instance.name}</strong>
     <div class="tags">
@@ -118,6 +135,21 @@
         {#if uploaded.has_background} · con imagen{/if}.
         Quien lo reciba solo tiene que pegarlo en <strong>Importar por código</strong>.
       </p>
+      <div class="community">
+        {#if publishedCode === uploaded.code}
+          <span class="tag ok"><Icon name="check" size={12} /> Publicado en la comunidad</span>
+          <span class="hint">Ya aparece en Descubrir › Modpacks › Comunidad.</span>
+        {:else}
+          <div>
+            <strong>¿Quieres que lo vea todo el mundo?</strong>
+            <p class="hint">Publícalo en la comunidad y cualquiera podrá instalarlo desde Descubrir, sin pedirte el código.</p>
+          </div>
+          <button class="btn" onclick={publishToCommunity} disabled={publishing}>
+            <Icon name="upload" size={15} /> {publishing ? "Publicando…" : "Publicar en la comunidad"}
+          </button>
+        {/if}
+      </div>
+      {#if publishError}<div class="alert"><Icon name="alert" size={16} /><span>{publishError}</span></div>{/if}
     {:else if longCode}
       <label class="field">
         <span>Tu código</span>
@@ -306,6 +338,24 @@
   }
   .advanced {
     margin-top: 14px;
+  }
+  .community {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: rgb(0 0 0 / 0.2);
+  }
+  .community p {
+    margin: 2px 0 0;
+  }
+  .community strong {
+    font-size: 13.5px;
   }
   .advanced summary {
     cursor: pointer;

@@ -21,5 +21,7 @@ MAX_FILE_MB = "25"
 # Lo que puede subir cada cuenta de Minecraft al día (MB) y cuántos packs.
 DAILY_UPLOAD_MB = "500"
 DAILY_PACKS = "30"
+# UUIDs (sin guiones, separados por comas) que pueden borrar cualquier publicación del catálogo.
+ADMIN_UUIDS = ""
 
 # El secreto de firma NO va aquí: `npx wrangler secret put SECRET`

@@ -278,3 +278,96 @@ export interface LibrarySkin {
   added_at: number;
   data_base64: string;
 }
+
+// ───── Modrinth ─────
+
+export type ProjectType = "mod" | "modpack" | "resourcepack" | "shader";
+export type SearchSort = "relevance" | "downloads" | "follows" | "newest" | "updated";
+
+export interface SearchQuery {
+  query: string;
+  project_type: ProjectType;
+  game_version?: string | null;
+  loader?: Loader | null;
+  offset?: number;
+  limit?: number;
+  sort?: SearchSort;
+}
+
+export interface SearchHit {
+  project_id: string;
+  slug: string;
+  title: string;
+  description: string;
+  author: string;
+  icon_url: string | null;
+  downloads: number;
+  follows: number;
+  display_categories: string[];
+  date_modified: string | null;
+  featured_gallery: string | null;
+}
+
+export interface SearchResults {
+  hits: SearchHit[];
+  offset: number;
+  limit: number;
+  total_hits: number;
+}
+
+export interface MrVersion {
+  id: string;
+  project_id: string;
+  name: string;
+  version_number: string;
+  version_type: string;
+  game_versions: string[];
+  loaders: string[];
+  date_published: string;
+}
+
+export interface InstallOutcome {
+  installed: { project_id: string; file_name: string; requested: boolean }[];
+  missing_dependencies: string[];
+}
+
+export interface ModpackPreview {
+  token: string;
+  name: string;
+  summary: string | null;
+  version: string;
+  minecraft_version: string;
+  loader: Loader;
+  loader_version: string | null;
+  mod_count: number;
+  file_count: number;
+  download_bytes: number;
+  override_count: number;
+  external_files: number;
+  icon_url: string | null;
+}
+
+// ───── Catálogo comunitario ─────
+
+export interface CatalogFile {
+  file_name: string;
+  sha1: string;
+  size: number;
+}
+
+export interface CatalogEntry {
+  id: string;
+  kind: "pack" | "mod";
+  name: string;
+  description: string | null;
+  author: string;
+  owner: string;
+  created: string;
+  minecraft_version: string;
+  loader: Loader;
+  loader_version: string | null;
+  code: string | null;
+  image_url: string | null;
+  mod_count: number | null;
+  file: CatalogFile | null;
+}
