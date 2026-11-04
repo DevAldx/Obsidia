@@ -657,7 +657,7 @@ mod tests {
               "downloads":{{"client":{{"sha1":"{c_sha}","size":{c_len},"url":"{base}/client.jar"}}}},
               "libraries":[
                 {{"name":"a:plain:1","downloads":{{"artifact":{{"path":"a/plain/1/plain-1.jar","sha1":"{p_sha}","size":{p_len},"url":"{base}/plain.jar"}}}}}},
-                {{"name":"a:nat:1","natives":{{"linux":"natives-linux"}},"extract":{{"exclude":["META-INF/"]}},
+                {{"name":"a:nat:1","natives":{{"linux":"natives-linux","windows":"natives-linux","osx":"natives-linux"}},"extract":{{"exclude":["META-INF/"]}},
                   "downloads":{{"classifiers":{{"natives-linux":{{"path":"a/nat/1/nat-1-natives-linux.jar","sha1":"{n_sha}","size":{n_len},"url":"{base}/nat.jar"}}}}}}}}
               ]
             }}"#,

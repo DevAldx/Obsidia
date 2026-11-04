@@ -272,6 +272,18 @@ async fn pump<R: AsyncRead + Unpin>(
     }
 }
 
+/// En Windows, evita que un proceso de consola (java.exe) abra su propia ventana de cmd.
+/// La salida se sigue capturando por las tuberías.
+pub(crate) fn hide_console(cmd: &mut Command) {
+    #[cfg(windows)]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    #[cfg(not(windows))]
+    let _ = cmd;
+}
+
 /// Ejecuta el juego hasta que termine (o `kill` se dispare). Devuelve el código de salida.
 /// Captura stdout/stderr línea a línea, con tokens censurados, y opcionalmente
 /// los guarda en `log_file`.
@@ -281,13 +293,16 @@ pub async fn run_game(
     log_file: Option<PathBuf>,
     kill: oneshot::Receiver<()>,
 ) -> Result<Option<i32>> {
-    let mut child = Command::new(&cmd.program)
+    let mut command = Command::new(&cmd.program);
+    command
         .args(&cmd.args)
         .current_dir(&cmd.cwd)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
-        .kill_on_drop(true)
+        .kill_on_drop(true);
+    hide_console(&mut command);
+    let mut child = command
         .spawn()
         .map_err(|e| CoreError::Launch(format!("no se pudo iniciar Java: {e}")))?;
 
@@ -330,6 +345,7 @@ mod tests {
         install::PreparedVersion,
         meta::{fixtures::{LEGACY, MODERN}, AssetIndex, VersionMeta},
     };
+    #[cfg(unix)]
     use std::sync::Mutex as StdMutex;
 
     fn prepared(json: &str, logging: Option<&str>) -> PreparedVersion {
@@ -366,6 +382,10 @@ mod tests {
         build_command(&input).expect("command").args
     }
 
+    fn expected_cp() -> String {
+        ["/l/a.jar", "/l/b.jar", "/v/client.jar"].join(CLASSPATH_SEPARATOR)
+    }
+
     fn value_after<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
         args.iter().position(|a| a == flag).and_then(|i| args.get(i + 1)).map(String::as_str)
     }
@@ -376,9 +396,10 @@ mod tests {
         let args = build(&p, &LaunchAuth::demo(), false);
         assert_eq!(&args[..3], ["-Xms1024M", "-Xmx2048M", "-XX:+UseG1GC"]);
         assert!(args.contains(&"-Djava.library.path=/v/natives".to_owned()));
-        assert_eq!(value_after(&args, "-cp"), Some("/l/a.jar:/l/b.jar:/v/client.jar"));
-        // Regla de macOS/Windows: no deben aparecer.
-        assert!(!args.iter().any(|a| a.contains("XstartOnFirstThread") || a.contains("HeapDumpPath")));
+        assert_eq!(value_after(&args, "-cp"), Some(expected_cp().as_str()));
+        // Reglas por SO: solo la del sistema actual.
+        assert_eq!(args.iter().any(|a| a.contains("XstartOnFirstThread")), cfg!(target_os = "macos"));
+        assert_eq!(args.iter().any(|a| a.contains("HeapDumpPath")), cfg!(target_os = "windows"));
         let main = args.iter().position(|a| a == "net.minecraft.client.main.Main").expect("main");
         assert!(args.iter().position(|a| a.starts_with("-Dlog4j")).expect("log") < main);
         assert!(args.iter().position(|a| a == "-cp").expect("cp") < main);
@@ -404,7 +425,7 @@ mod tests {
     fn legacy_command_uses_default_jvm_args_and_minecraft_arguments() {
         let p = prepared(LEGACY, None);
         let args = build(&p, &LaunchAuth::demo(), false);
-        assert_eq!(value_after(&args, "-cp"), Some("/l/a.jar:/l/b.jar:/v/client.jar"));
+        assert_eq!(value_after(&args, "-cp"), Some(expected_cp().as_str()));
         assert!(args.contains(&"-Djava.library.path=/v/natives".to_owned()));
         assert_eq!(value_after(&args, "--username"), Some("Player"));
         assert_eq!(value_after(&args, "--assetsDir"), Some("/assets"));
@@ -421,6 +442,7 @@ mod tests {
         assert_eq!(redact("sin secretos", &secrets), "sin secretos");
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn run_game_captures_output_redacts_and_reports_exit_code() -> Result<()> {
         let lines = Arc::new(StdMutex::new(Vec::<LogLine>::new()));

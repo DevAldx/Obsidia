@@ -110,6 +110,7 @@ fn candidate_paths(paths: &ObsidiaPaths) -> Vec<PathBuf> {
 async fn probe(path: PathBuf) -> Option<JavaRuntime> {
     let mut cmd = Command::new(&path);
     cmd.arg("-version").kill_on_drop(true);
+    crate::launcher::hide_console(&mut cmd);
     let output = tokio::time::timeout(Duration::from_secs(5), cmd.output())
         .await
         .ok()?

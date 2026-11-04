@@ -220,6 +220,7 @@ mod tests {
         dir
     }
 
+    #[cfg(unix)]
     #[test]
     fn migrates_nebula_dirs_and_rewrites_paths() {
         let root = tmp();

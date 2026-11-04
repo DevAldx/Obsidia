@@ -177,8 +177,19 @@ pub fn mojang_arch() -> &'static str {
     }
 }
 
+/// Sistema operativo con el nombre que usa Mojang en sus reglas (`windows`, `osx`, `linux`).
+pub fn mojang_os() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "osx"
+    } else {
+        "linux"
+    }
+}
+
 fn os_matches(os: &OsRule) -> bool {
-    if os.name.as_deref().is_some_and(|n| n != "linux") {
+    if os.name.as_deref().is_some_and(|n| n != mojang_os()) {
         return false;
     }
     if os.arch.as_deref().is_some_and(|a| a != mojang_arch()) {
@@ -301,7 +312,7 @@ pub fn resolve_libraries(meta: &VersionMeta, features: &HashSet<&str>) -> Result
 
         // Clasificador de natives antiguo (≤ 1.18): `natives: { linux: "natives-linux" }`.
         if let Some(natives) = &lib.natives {
-            if let Some(classifier) = natives.get("linux") {
+            if let Some(classifier) = natives.get(mojang_os()) {
                 let classifier = classifier.replace("${arch}", "64");
                 let remote = downloads
                     .and_then(|d| d.classifiers.as_ref())
@@ -425,7 +436,9 @@ pub(crate) mod fixtures {
 
 #[cfg(test)]
 mod tests {
-    use super::fixtures::{LEGACY, MODERN};
+    #[cfg(target_os = "linux")]
+    use super::fixtures::LEGACY;
+    use super::fixtures::MODERN;
     use super::*;
 
     fn parse(s: &str) -> VersionMeta {
@@ -480,6 +493,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn legacy_libraries_resolve_for_linux() {
         let libs = resolve_libraries(&parse(LEGACY), &feats(&[])).expect("resolve");
         let names: Vec<_> = libs.iter().map(|l| l.name.as_str()).collect();
@@ -501,6 +515,20 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "windows")]
+    fn modern_libraries_pick_windows_natives() {
+        let libs = resolve_libraries(&parse(MODERN), &feats(&[])).expect("resolve");
+        let paths: Vec<_> = libs
+            .iter()
+            .filter_map(|l| l.artifact.as_ref().map(|a| a.rel_path.as_str()))
+            .collect();
+        assert_eq!(paths.len(), 2);
+        assert!(paths.contains(&"org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3-natives-windows.jar"));
+        assert!(!paths.iter().any(|p| p.contains("natives-linux")));
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
     fn modern_libraries_dedup_and_natives() {
         let libs = resolve_libraries(&parse(MODERN), &feats(&[])).expect("resolve");
         let paths: Vec<_> = libs
