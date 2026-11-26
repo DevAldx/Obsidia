@@ -29,6 +29,8 @@ export interface Settings {
     background_fit: BackgroundFit;
     background_blur: number;
     background_dim: number;
+    /** Opacidad de la imagen de la instancia en Inicio (10-100 %). */
+    instance_image_opacity: number;
   };
   account: { microsoft_client_id: string | null };
   updates: { manifest_url: string | null };

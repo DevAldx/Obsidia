@@ -16,6 +16,7 @@
     background_fit: "cover",
     background_blur: 0,
     background_dim: 40,
+    instance_image_opacity: 100,
   };
 
   // El fondo y el icono se guardan al elegirlos; colores y efectos, con «Guardar».
@@ -43,6 +44,9 @@
     preview ? `--accent: ${preview.accent}; --accent-hover: ${preview.hover}; --accent-glow: ${preview.glow};` : "",
   );
   const previewBg = $derived(themes.find((t) => t.id === uiDraft.theme)?.bg ?? "#09080d");
+
+  /** Imagen de alguna instancia para ver cómo queda la opacidad. */
+  const instanceSample = $derived(Object.values(app.backgrounds).find((bg) => bg) ?? null);
 
   const dirty = $derived(JSON.stringify(uiDraft) !== JSON.stringify(app.settings?.ui ?? DEFAULT_UI));
 
@@ -250,6 +254,29 @@
         <p class="hint">El desenfoque consume GPU; en equipos modestos, mejor 0.</p>
       {/if}
     {/if}
+  </section>
+
+  <section class="asset">
+    <div class="asset-head">
+      <span class="bg-thumb stage-thumb">
+        <span
+          class="stage-thumb-img"
+          class:obsidia-bg={!instanceSample}
+          style:background-image={instanceSample ? `url("${instanceSample}")` : undefined}
+          style:opacity={uiDraft.instance_image_opacity / 100}
+        ></span>
+      </span>
+      <div>
+        <strong>Imagen de las instancias</strong>
+        <p class="hint">Cuánto se ve el fondo de la instancia en la pantalla de inicio.</p>
+      </div>
+    </div>
+    <div class="bg-controls">
+      <label class="field">
+        <span>Opacidad · {uiDraft.instance_image_opacity}%</span>
+        <input type="range" min="10" max="100" step="5" bind:value={uiDraft.instance_image_opacity} />
+      </label>
+    </div>
   </section>
 </div>
 
@@ -465,6 +492,17 @@
     background-size: cover;
     background-position: center;
     border: 1px solid var(--border-strong);
+  }
+  .stage-thumb {
+    position: relative;
+    overflow: hidden;
+    background: var(--background);
+  }
+  .stage-thumb-img {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
   }
   .asset-actions {
     display: flex;
